@@ -125,7 +125,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: "deploy/docker-compose.prod.yaml"
           target: "${{ secrets.DEPLOY_PATH }}"
-          strip_components: 1
+          strip_components: 2
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -161,9 +161,15 @@ jobs:
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
+            # Some scp/tar combinations may keep a nested deploy/ folder.
+            if [ ! -f "${COMPOSE_FILE}" ] && [ -f "${DEPLOY_PATH}/deploy/docker-compose.prod.yaml" ]; then
+              mv "${DEPLOY_PATH}/deploy/docker-compose.prod.yaml" "${COMPOSE_FILE}"
+            fi
+
             if [ ! -f "${COMPOSE_FILE}" ]; then
               echo "Missing compose file at ${COMPOSE_FILE}"
               ls -la "${DEPLOY_PATH}" || true
+              ls -la "${DEPLOY_PATH}/deploy" || true
               exit 1
             fi
 
