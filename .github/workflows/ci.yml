@@ -148,6 +148,7 @@ jobs:
 
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
             REGISTRY_OWNER="$(echo "${REGISTRY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+            COMPOSE_FILE="${DEPLOY_PATH}/docker-compose.prod.yaml"
 
             mkdir -p "${DEPLOY_PATH}"
             cd "${DEPLOY_PATH}"
@@ -160,13 +161,19 @@ jobs:
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
-            docker compose -f docker-compose.prod.yaml pull
+            if [ ! -f "${COMPOSE_FILE}" ]; then
+              echo "Missing compose file at ${COMPOSE_FILE}"
+              ls -la "${DEPLOY_PATH}" || true
+              exit 1
+            fi
 
-            docker compose -f docker-compose.prod.yaml up -d --remove-orphans
+            docker compose -f "${COMPOSE_FILE}" pull
+
+            docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
             docker image prune -af || true
 
             sleep 5
             curl -f http://localhost:8080/healthz || (echo "Health check failed" && exit 1)
 
-            docker compose -f docker-compose.prod.yaml logs -n 50
+            docker compose -f "${COMPOSE_FILE}" logs -n 50
