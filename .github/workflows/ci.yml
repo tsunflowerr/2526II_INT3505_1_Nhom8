@@ -116,16 +116,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Copy production compose to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          source: "deploy/docker-compose.prod.yaml"
-          target: "${{ secrets.DEPLOY_PATH }}"
-          strip_components: 2
+      - name: Load production compose content
+        id: compose
+        run: |
+          echo "content<<EOF" >> "$GITHUB_OUTPUT"
+          cat deploy/docker-compose.prod.yaml >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -135,13 +131,14 @@ jobs:
           PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          COMPOSE_FILE_CONTENT: ${{ steps.compose.outputs.content }}
 
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
-          envs: REGISTRY_OWNER,IMAGE_TAG,PROD_ENV_FILE,GHCR_USERNAME,GHCR_TOKEN
+          envs: REGISTRY_OWNER,IMAGE_TAG,PROD_ENV_FILE,GHCR_USERNAME,GHCR_TOKEN,COMPOSE_FILE_CONTENT
 
           script: |
             set -euo pipefail
@@ -155,21 +152,17 @@ jobs:
 
             echo "Writing .env from PROD_ENV_FILE secret"
             printf '%s\n' "${PROD_ENV_FILE}" > .env
+            echo "Writing docker-compose.prod.yaml from workflow content"
+            printf '%s\n' "${COMPOSE_FILE_CONTENT}" > "${COMPOSE_FILE}"
 
             export REGISTRY_NAMESPACE="${REGISTRY_OWNER}"
             export IMAGE_TAG="${IMAGE_TAG}"
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
-            # Some scp/tar combinations may keep a nested deploy/ folder.
-            if [ ! -f "${COMPOSE_FILE}" ] && [ -f "${DEPLOY_PATH}/deploy/docker-compose.prod.yaml" ]; then
-              mv "${DEPLOY_PATH}/deploy/docker-compose.prod.yaml" "${COMPOSE_FILE}"
-            fi
-
             if [ ! -f "${COMPOSE_FILE}" ]; then
               echo "Missing compose file at ${COMPOSE_FILE}"
               ls -la "${DEPLOY_PATH}" || true
-              ls -la "${DEPLOY_PATH}/deploy" || true
               exit 1
             fi
 
