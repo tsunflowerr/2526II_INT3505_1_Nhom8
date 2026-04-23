@@ -23,7 +23,10 @@ services:
       - backend
 
   migrations:
-    image: migration:1.0.0
+    build:
+      context: ../migration_services
+      dockerfile: Dockerfile
+    image: ticketrush-migration:local
 
     env_file:
       - ../.env
@@ -33,6 +36,54 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+    networks:
+      - backend
+
+  event_service:
+    build:
+      context: ../event_service
+      dockerfile: Dockerfile
+    image: ticketrush-event_service:local
+    restart: always
+
+    env_file:
+      - ../.env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      POSTGRES_HOST: postgres
+
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - backend
+
+  booking_api:
+    build:
+      context: ../booking_api
+      dockerfile: Dockerfile
+    image: ticketrush-booking_api:local
+    restart: always
+
+    env_file:
+      - ../.env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8081
+      POSTGRES_HOST: postgres
+
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+    ports:
+      - "8081:8081"
 
     networks:
       - backend
