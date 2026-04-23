@@ -92,7 +92,7 @@ jobs:
         with:
           images: ghcr.io/${{ env.REGISTRY_OWNER }}/ticketrush-${{ matrix.name }}
           tags: |
-            type=sha,prefix=
+            type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push image
