@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    env_file:
+      - ./.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  migrations:
+    image: ghcr.io/${REGISTRY_NAMESPACE}/ticketrush-migration_services:${IMAGE_TAG}
+    restart: "no"
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  event_service:
+    image: ghcr.io/${REGISTRY_NAMESPACE}/ticketrush-event_service:${IMAGE_TAG}
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: ${EVENT_SERVICE_PORT:-8080}
+      POSTGRES_HOST: postgres
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    ports:
+      - "${EVENT_SERVICE_PORT:-8080}:${EVENT_SERVICE_PORT:-8080}"
+    networks:
+      - backend
+
+  booking_api:
+    image: ghcr.io/${REGISTRY_NAMESPACE}/ticketrush-booking_api:${IMAGE_TAG}
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: ${BOOKING_API_PORT:-8081}
+      POSTGRES_HOST: postgres
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    ports:
+      - "${BOOKING_API_PORT:-8081}:${BOOKING_API_PORT:-8081}"
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
