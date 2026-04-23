@@ -152,12 +152,8 @@ jobs:
             mkdir -p "${DEPLOY_PATH}"
             cd "${DEPLOY_PATH}"
 
-            if [ ! -f .env ]; then
-              echo "Creating .env"
-              cat > .env <<'EOF'
-              ${PROD_ENV_FILE}
-              EOF
-            fi
+            echo "Writing .env from PROD_ENV_FILE secret"
+            printf '%s\n' "${PROD_ENV_FILE}" > .env
 
             export REGISTRY_NAMESPACE="${REGISTRY_OWNER}"
             export IMAGE_TAG="${IMAGE_TAG}"
