@@ -103,6 +103,7 @@ func (b *Booking) ToDTO() *dto.BookingResponse {
 		ExpiresAt:   b.ExpiresAt,
 		Items:       items,
 		TotalAmount: totalAmount.String(),
+		CreatedAt:   b.CreatedAt,
 	}
 }
 

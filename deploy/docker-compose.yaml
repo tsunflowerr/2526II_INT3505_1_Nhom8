@@ -23,10 +23,12 @@ services:
       - backend
 
   migrations:
-    image: migration:latest
+    image: migration:1.0.0
 
     env_file:
       - ../.env
+    environment:
+      POSTGRES_HOST: postgres
 
     depends_on:
       postgres:

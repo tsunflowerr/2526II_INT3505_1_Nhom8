@@ -92,6 +92,10 @@ func (s *HTTPServer) Close() error {
 	return nil
 }
 
+func (s *HTTPServer) Router() *gin.Engine {
+	return s.router
+}
+
 func (s *HTTPServer) cancelBaseContext() {
 	if s.cancelBaseCtx != nil {
 		s.cancelBaseCtx()

@@ -44,12 +44,18 @@ func main() {
 
 	cfg := config.NewConfig()
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s password=%s sslmode=disable",
+	sslMode := cfg.SSLMode
+	if sslMode == "" {
+		sslMode = "disable"
+	}
+
+	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s password=%s sslmode=%s",
 		cfg.Host,
 		cfg.Port,
 		cfg.User,
 		cfg.DBName,
 		cfg.Password,
+		sslMode,
 	)
 
 	db, err := goose.OpenDBWithDriver("postgres", dsn)
@@ -65,7 +71,7 @@ func main() {
 	goose.SetTableName("booking_db_version")
 
 	if err := goose.Run(command, db, *dir, args[1:]...); err != nil {
-		log.Fatal("miragte %v: %v", command, err)
+		log.Fatalf("migrate %s: %v", command, err)
 	}
 
 	log.Println("loaded config successfully")

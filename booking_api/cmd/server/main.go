@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+// @title Booking API
+// @version 1.0
+// @description Booking API for seat hold, confirm, cancel, and seat status workflows.
+// @BasePath /api/v1
+// @schemes http https
 func main() {
 	config := config.NewConfig()
 	log.Println(config)

@@ -1,14 +1,21 @@
 package application
 
 import (
+	_ "booking_api/docs"
 	"booking_api/internal/config"
+	"booking_api/internal/handler"
 	"booking_api/internal/infrastructure/database"
 	"booking_api/internal/infrastructure/logger"
+	"booking_api/internal/middleware"
+	"booking_api/internal/repository"
 	"booking_api/internal/server"
+	"booking_api/internal/services"
 	"context"
 	"fmt"
 	"sync"
 
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -21,22 +28,46 @@ type App struct {
 	stopOnce sync.Once
 }
 
+var (
+	newLoggerFn       = logger.NewLogger
+	newHTTPServerFn   = server.NewHTTPServer
+	connectPostgresFn = database.ConnectPostgres
+)
+
 func NewApp(cfg config.Config) (*App, error) {
-	logger, err := logger.NewLogger(cfg.Logger)
+	zapLogger, err := newLoggerFn(cfg.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	srv := server.NewHTTPServer(cfg.Server)
+	srv := newHTTPServerFn(cfg.Server)
 
-	db, err := database.ConnectPostgres(cfg.Postgres)
+	db, err := connectPostgresFn(cfg.Postgres)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 
+	// ---- Wire dependencies ----
+	bookingRepo := repository.NewBookingRepository(db, zapLogger)
+	bookingService := services.NewBookingService(zapLogger, bookingRepo)
+	bookingHandler := handler.NewBookingHandler(bookingService, zapLogger)
+
+	// ---- Register middleware ----
+	router := srv.Router()
+	router.Use(middleware.CORS())
+	router.Use(middleware.RequestID())
+	router.Use(middleware.RequestLogger(zapLogger))
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// ---- Register routes ----
+	apiV1 := router.Group("/api/v1")
+	bookingHandler.RegisterRoutes(apiV1)
+
+	zapLogger.Info("application initialized successfully")
+
 	return &App{
 		config: cfg,
-		logger: logger,
+		logger: zapLogger,
 		server: srv,
 		db:     db,
 	}, nil

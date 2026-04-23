@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+      - thienqd
+
+jobs:
+  unit-tests-and-coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - booking_api
+          - event_service
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+
+      - name: Run all unit tests
+        working-directory: ${{ matrix.module }}
+        run: go test ./...
+
+      - name: Coverage gate (all internal packages)
+        run: |
+          ./scripts/coverage_gate.sh "${{ matrix.module }}" 90 internal/...
