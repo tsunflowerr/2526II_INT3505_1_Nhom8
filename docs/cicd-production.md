@@ -36,6 +36,7 @@ LOG_LEVEL=info
 
 EVENT_SERVICE_PORT=8080
 BOOKING_API_PORT=8081
+WEB_PORT=3000
 ```
 
 ## 2) Server prerequisites
@@ -62,6 +63,7 @@ The pipeline publishes images:
 - `ghcr.io/<owner>/ticketrush-booking_api:<tag>`
 - `ghcr.io/<owner>/ticketrush-event_service:<tag>`
 - `ghcr.io/<owner>/ticketrush-migration_services:<tag>`
+- `ghcr.io/<owner>/ticketrush-web:<tag>`
 
 Tags:
 

@@ -88,6 +88,23 @@ services:
     networks:
       - backend
 
+  web:
+    build:
+      context: ../ticketrush-web
+      dockerfile: Dockerfile
+    image: ticketrush-web:local
+    restart: always
+
+    ports:
+      - "3000:80"
+
+    depends_on:
+      - event_service
+      - booking_api
+
+    networks:
+      - backend
+
 volumes:
   postgres_data:
 

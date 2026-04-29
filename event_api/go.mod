@@ -1,4 +1,4 @@
-module event_service
+module event_api
 
 go 1.25.7
 

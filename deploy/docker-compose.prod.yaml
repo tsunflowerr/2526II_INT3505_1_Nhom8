@@ -61,6 +61,19 @@ services:
     networks:
       - backend
 
+  web:
+    image: ghcr.io/${REGISTRY_NAMESPACE}/ticketrush-web:${IMAGE_TAG}
+    restart: always
+    depends_on:
+      booking_api:
+        condition: service_started
+      event_service:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    networks:
+      - backend
+
 volumes:
   postgres_data:
 
