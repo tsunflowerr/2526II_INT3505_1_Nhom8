@@ -16,66 +16,6 @@ export class ApiError extends Error {
   }
 }
 
-const DEFAULT_BASE_URL = '/user-api'
-
-function getBaseUrl(): string {
-  const fromEnv = (import.meta as any).env?.VITE_USER_API_URL as string | undefined
-  return fromEnv?.trim() ? fromEnv.trim().replace(/\/$/, '') : DEFAULT_BASE_URL
-}
-
-async function parseJsonSafe(response: Response): Promise<unknown | undefined> {
-  const text = await response.text()
-  if (!text) return undefined
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
-}
-
-async function requestJson<T>(
-  path: string,
-  options: {
-    method: string
-    body?: unknown
-    accessToken?: string
-  },
-): Promise<T> {
-  const url = `${getBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
-
-  const headers: Record<string, string> = {
-    accept: 'application/json',
-  }
-
-  if (options.body !== undefined) {
-    headers['content-type'] = 'application/json'
-  }
-
-  if (options.accessToken) {
-    headers.authorization = `Bearer ${options.accessToken}`
-  }
-
-  const response = await fetch(url, {
-    method: options.method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  })
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  const data = await parseJsonSafe(response)
-
-  if (!response.ok) {
-    const maybeBody = (data && typeof data === 'object' ? (data as ApiErrorResponse) : undefined)
-    const message = maybeBody?.message ?? response.statusText ?? 'Request failed'
-    throw new ApiError(response.status, message, maybeBody)
-  }
-
-  return data as T
-}
-
 export type TokenPair = {
   access_token: string
   refresh_token: string
@@ -114,30 +54,111 @@ export type UpdateMePayload = {
   avatar_url?: string | null
 }
 
+const PROFILE_KEY = 'ticketrush.mock.user.profile'
+
+function delay(ms = 180): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function roleFromEmail(email: string): 'admin' | 'customer' {
+  return email.toLowerCase().includes('admin') ? 'admin' : 'customer'
+}
+
+function makeUser(email: string, role = roleFromEmail(email), fullName?: string): User {
+  const stored = readStoredProfile()
+  const now = new Date().toISOString()
+  return {
+    id: role === 'admin' ? 'demo-admin' : 'demo-customer',
+    email,
+    full_name: stored?.full_name ?? fullName ?? (role === 'admin' ? 'Avery Admin' : 'Taylor Customer'),
+    avatar_url:
+      stored?.avatar_url ??
+      (role === 'admin'
+        ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=80'
+        : 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80'),
+    provider: 'mock',
+    role,
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+  }
+}
+
+function readStoredProfile(): UpdateMePayload | null {
+  const raw = window.localStorage.getItem(PROFILE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UpdateMePayload
+  } catch {
+    return null
+  }
+}
+
+function tokenFor(email: string): TokenPair {
+  const role = roleFromEmail(email)
+  return {
+    access_token: `mock-${role}:${encodeURIComponent(email)}`,
+    refresh_token: `refresh-${role}`,
+    token_type: 'Bearer',
+  }
+}
+
+function emailFromToken(accessToken: string): string {
+  const [, encoded] = accessToken.split(':')
+  if (!encoded) return accessToken.includes('admin') ? 'admin@ticketrush.test' : 'guest@ticketrush.test'
+  return decodeURIComponent(encoded)
+}
+
 export async function register(payload: RegisterPayload): Promise<TokenPair> {
-  return requestJson<TokenPair>('/auth/register', { method: 'POST', body: payload })
+  await delay()
+  if (payload.password.length < 8) {
+    throw new ApiError(400, 'Password must be at least 8 characters.', {
+      code: 'PASSWORD_TOO_SHORT',
+      message: 'Password must be at least 8 characters.',
+      details: {},
+    })
+  }
+  window.localStorage.setItem(PROFILE_KEY, JSON.stringify({ full_name: payload.full_name }))
+  return tokenFor(payload.email)
 }
 
 export async function login(payload: LoginPayload): Promise<TokenPair> {
-  return requestJson<TokenPair>('/auth/login', { method: 'POST', body: payload })
+  await delay()
+  if (!payload.email || !payload.password) {
+    throw new ApiError(400, 'Email and password are required.', {
+      code: 'INVALID_CREDENTIALS',
+      message: 'Email and password are required.',
+      details: {},
+    })
+  }
+  return tokenFor(payload.email)
 }
 
 export async function refresh(payload: RefreshPayload): Promise<TokenPair> {
-  return requestJson<TokenPair>('/auth/refresh', { method: 'POST', body: payload })
+  await delay()
+  return tokenFor(payload.refresh_token.includes('admin') ? 'admin@ticketrush.test' : 'guest@ticketrush.test')
 }
 
 export async function logout(payload: RefreshPayload): Promise<void> {
-  return requestJson<void>('/auth/logout', { method: 'POST', body: payload })
+  await delay(payload.refresh_token ? 80 : 80)
 }
 
 export async function getMe(accessToken: string): Promise<User> {
-  return requestJson<User>('/users/me', { method: 'GET', accessToken })
+  await delay(120)
+  const email = emailFromToken(accessToken)
+  return makeUser(email)
 }
 
 export async function updateMe(accessToken: string, payload: UpdateMePayload): Promise<User> {
-  return requestJson<User>('/users/me', { method: 'PATCH', accessToken, body: payload })
+  await delay(160)
+  const current = readStoredProfile() ?? {}
+  const next = { ...current, ...payload }
+  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(next))
+  const email = emailFromToken(accessToken)
+  return makeUser(email)
 }
 
 export async function getUser(accessToken: string, userId: string): Promise<User> {
-  return requestJson<User>(`/users/${encodeURIComponent(userId)}`, { method: 'GET', accessToken })
+  if (!userId) throw new ApiError(404, 'User was not found.')
+  return getMe(accessToken)
 }
