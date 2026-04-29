@@ -88,6 +88,30 @@ services:
     networks:
       - backend
 
+  user_api:
+    build:
+      context: ../user_api
+      dockerfile: Dockerfile
+    image: ticketrush-user_api:local
+    restart: always
+
+    env_file:
+      - ../.env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8082
+      POSTGRES_HOST: postgres
+
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+    ports:
+      - "8082:8082"
+
+    networks:
+      - backend
+
   web:
     build:
       context: ../ticketrush-web
@@ -101,6 +125,7 @@ services:
     depends_on:
       - event_service
       - booking_api
+      - user_api
 
     networks:
       - backend
@@ -110,4 +135,3 @@ volumes:
 
 networks:
   backend:
-
