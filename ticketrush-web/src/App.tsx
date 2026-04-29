@@ -1,9 +1,9 @@
+import { CircleUserRound, ShieldCheck, Ticket } from 'lucide-react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import { ShieldCheck, Ticket } from 'lucide-react'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AdminCreateEventPage } from './pages/AdminCreateEventPage'
+import { AuthPage } from './pages/AuthPage'
 import { DiscoveryPage } from './pages/DiscoveryPage'
-import { LoginPage } from './pages/LoginPage'
-import { RegisterPage } from './pages/RegisterPage'
 
 function App() {
   return (
@@ -18,8 +18,10 @@ function App() {
 
         <nav className="site-nav" aria-label="Main navigation">
           <NavLink to="/">Events</NavLink>
-          <NavLink to="/login">Login</NavLink>
-          <NavLink to="/register">Register</NavLink>
+          <NavLink to="/auth">
+            <CircleUserRound size={18} strokeWidth={2.5} />
+            Account
+          </NavLink>
           <NavLink to="/admin">
             <ShieldCheck size={18} strokeWidth={2.5} />
             Admin
@@ -29,9 +31,11 @@ function App() {
 
       <Routes>
         <Route path="/" element={<DiscoveryPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login" element={<AuthPage initialMode="login" />} />
+        <Route path="/register" element={<AuthPage initialMode="register" />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/events/new" element={<AdminCreateEventPage />} />
       </Routes>
     </main>
   )

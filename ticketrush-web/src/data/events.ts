@@ -13,7 +13,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1000&q=80',
     status: 'Selling fast',
+    capacity: 4800,
+    sold: 4210,
     tags: ['indie pop', 'outdoor', 'night'],
+    description:
+      'A glowing outdoor concert with two support acts, food pop-ups, and reserved balcony upgrades.',
   },
   {
     id: 'city-finals-showdown',
@@ -27,7 +31,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=1000&q=80',
     status: 'Few left',
+    capacity: 18500,
+    sold: 17780,
     tags: ['basketball', 'playoffs', 'arena'],
+    description:
+      'A high-demand finals matchup with family sections, club seating, and last-release floor inventory.',
   },
   {
     id: 'little-moon-musical',
@@ -41,7 +49,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=1000&q=80',
     status: 'Available',
+    capacity: 1200,
+    sold: 690,
     tags: ['family', 'musical', 'matinee'],
+    description:
+      'A bright musical production with accessible seating, early entry, and family bundle options.',
   },
   {
     id: 'block-party-weekender',
@@ -55,7 +67,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1000&q=80',
     status: 'Available',
+    capacity: 7600,
+    sold: 3980,
     tags: ['food', 'music', 'all ages'],
+    description:
+      'Two-day street festival with live stages, maker stalls, day passes, and all-ages zones.',
   },
   {
     id: 'clay-and-coffee-lab',
@@ -69,7 +85,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1493106819501-66d381c466f1?auto=format&fit=crop&w=1000&q=80',
     status: 'Few left',
+    capacity: 80,
+    sold: 71,
     tags: ['creative', 'hands-on', 'morning'],
+    description:
+      'Small-format pottery workshop with materials included, coffee tasting, and take-home firing.',
   },
   {
     id: 'laugh-lines-night',
@@ -83,7 +103,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=1000&q=80',
     status: 'Selling fast',
+    capacity: 320,
+    sold: 278,
     tags: ['stand-up', 'late show', 'club'],
+    description:
+      'Late-night comedy showcase with rotating headliners, two-item minimum, and VIP tables.',
   },
   {
     id: 'synthwave-promenade',
@@ -97,7 +121,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1000&q=80',
     status: 'Available',
+    capacity: 5400,
+    sold: 3190,
     tags: ['electronic', 'waterfront', 'dance'],
+    description:
+      'Waterfront electronic night with general admission, premium deck access, and group rates.',
   },
   {
     id: 'maker-market-sprint',
@@ -111,7 +139,11 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1000&q=80',
     status: 'Available',
+    capacity: 160,
+    sold: 92,
     tags: ['business', 'creative', 'founders'],
+    description:
+      'Hands-on sprint for makers covering product display, mini launches, and local buyer strategy.',
   },
   {
     id: 'summer-cup-opener',
@@ -125,48 +157,10 @@ export const events: EventItem[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1000&q=80',
     status: 'Selling fast',
+    capacity: 32000,
+    sold: 28600,
     tags: ['soccer', 'family', 'stadium'],
-  },
-  {
-    id: 'main-stage-magic',
-    name: 'Main Stage Magic',
-    category: 'Theater',
-    date: '2026-06-24',
-    time: '7:00 PM',
-    venue: 'Crown Playhouse',
-    city: 'Boston, MA',
-    priceFrom: 57,
-    imageUrl:
-      'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&w=1000&q=80',
-    status: 'Few left',
-    tags: ['drama', 'premiere', 'reserved'],
-  },
-  {
-    id: 'street-food-fiesta',
-    name: 'Street Food Fiesta',
-    category: 'Festival',
-    date: '2026-07-03',
-    time: '12:00 PM',
-    venue: 'Canal Square',
-    city: 'San Diego, CA',
-    priceFrom: 16,
-    imageUrl:
-      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=1000&q=80',
-    status: 'Available',
-    tags: ['food', 'daytime', 'local'],
-  },
-  {
-    id: 'rooftop-comedy-jam',
-    name: 'Rooftop Comedy Jam',
-    category: 'Comedy',
-    date: '2026-07-10',
-    time: '8:00 PM',
-    venue: 'Skyline Deck',
-    city: 'Phoenix, AZ',
-    priceFrom: 31,
-    imageUrl:
-      'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&w=1000&q=80',
-    status: 'Available',
-    tags: ['rooftop', 'stand-up', 'summer'],
+    description:
+      'Opening match with supporter sections, family packs, accessible seating, and merch bundles.',
   },
 ]

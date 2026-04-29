@@ -19,5 +19,8 @@ export type EventItem = {
   priceFrom: number
   imageUrl: string
   status: TicketStatus
+  capacity: number
+  sold: number
   tags: string[]
+  description: string
 }
