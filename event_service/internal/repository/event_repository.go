@@ -14,6 +14,8 @@ type EventRepository interface {
 	Create(req dto.CreateEventRequest) (*models.Event, error)
 	GetByID(eventID uuid.UUID) (*models.Event, error)
 	List(query dto.ListEventsQuery) ([]models.Event, int64, error)
+	GetShowtimeByID(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
+	ListShowtimesByEventID(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
 	Update(eventID uuid.UUID, req dto.UpdateEventRequest) (*models.Event, error)
 	Delete(eventID uuid.UUID) error
 }
@@ -36,6 +38,15 @@ func (r *eventRepository) Create(req dto.CreateEventRequest) (*models.Event, err
 		Description:     req.Description,
 		DurationMinutes: req.DurationMinutes,
 		EventType:       models.EventType(req.EventType),
+		Category:        req.Category,
+		Venue:           req.Venue,
+		City:            req.City,
+		Address:         req.Address,
+		Organizer:       req.Organizer,
+		ImageURL:        req.ImageURL,
+		SaleOpensAt:     req.SaleOpensAt,
+		IsFlashSale:     req.IsFlashSale,
+		Status:          req.Status,
 		Director:        req.Director,
 		AgeRating:       req.AgeRating,
 		ReleaseDate:     req.ReleaseDate,
@@ -102,6 +113,15 @@ func (r *eventRepository) Update(eventID uuid.UUID, req dto.UpdateEventRequest) 
 		"description":      req.Description,
 		"duration_minutes": req.DurationMinutes,
 		"event_type":       req.EventType,
+		"category":         req.Category,
+		"venue":            req.Venue,
+		"city":             req.City,
+		"address":          req.Address,
+		"organizer":        req.Organizer,
+		"image_url":        req.ImageURL,
+		"sale_opens_at":    req.SaleOpensAt,
+		"is_flash_sale":    req.IsFlashSale,
+		"status":           req.Status,
 		"director":         req.Director,
 		"age_rating":       req.AgeRating,
 		"release_date":     req.ReleaseDate,
@@ -117,6 +137,55 @@ func (r *eventRepository) Update(eventID uuid.UUID, req dto.UpdateEventRequest) 
 	}
 
 	return event, nil
+}
+
+func (r *eventRepository) GetShowtimeByID(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+	var showtime dto.ShowtimeResponse
+	err := r.db.Raw(`
+		SELECT
+			st.id::text AS id,
+			st.event_id::text AS event_id,
+			v.name AS venue,
+			v.address AS address,
+			st.start_time,
+			st.end_time,
+			sm.name AS seat_map_name
+		FROM show_times st
+		INNER JOIN seat_maps sm ON sm.id = st.seat_map_id
+		INNER JOIN venues v ON v.id = sm.venue_id
+		WHERE st.id = ? AND st.deleted_at IS NULL
+		LIMIT 1
+	`, showtimeID).Scan(&showtime).Error
+	if err != nil {
+		return nil, apperror.NewInternal("failed to get showtime", err)
+	}
+	if showtime.ID == "" {
+		return nil, apperror.NewNotFound("showtime not found")
+	}
+	return &showtime, nil
+}
+
+func (r *eventRepository) ListShowtimesByEventID(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+	showtimes := make([]dto.ShowtimeResponse, 0)
+	err := r.db.Raw(`
+		SELECT
+			st.id::text AS id,
+			st.event_id::text AS event_id,
+			v.name AS venue,
+			v.address AS address,
+			st.start_time,
+			st.end_time,
+			sm.name AS seat_map_name
+		FROM show_times st
+		INNER JOIN seat_maps sm ON sm.id = st.seat_map_id
+		INNER JOIN venues v ON v.id = sm.venue_id
+		WHERE st.event_id = ? AND st.deleted_at IS NULL
+		ORDER BY st.start_time ASC
+	`, eventID).Scan(&showtimes).Error
+	if err != nil {
+		return nil, apperror.NewInternal("failed to list showtimes", err)
+	}
+	return showtimes, nil
 }
 
 func (r *eventRepository) Delete(eventID uuid.UUID) error {

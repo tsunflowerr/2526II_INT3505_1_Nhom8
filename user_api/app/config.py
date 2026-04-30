@@ -25,6 +25,14 @@ class Config:
     ENABLE_SWAGGER: bool = _bool(os.getenv("ENABLE_SWAGGER"), True)
     TESTING: bool = _bool(os.getenv("TESTING"))
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
+    STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "minio")
+    S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", "http://minio:9000")
+    S3_ACCESS_KEY_ID: str = os.getenv("S3_ACCESS_KEY_ID", "minioadmin")
+    S3_SECRET_ACCESS_KEY: str = os.getenv("S3_SECRET_ACCESS_KEY", "minioadmin")
+    S3_BUCKET: str = os.getenv("S3_BUCKET", "ticketrush-media")
+    S3_REGION: str = os.getenv("S3_REGION", "us-east-1")
+    S3_PUBLIC_BASE_URL: str = os.getenv("S3_PUBLIC_BASE_URL", "http://localhost:9000/ticketrush-media")
+    UPLOAD_MAX_BYTES: int = int(os.getenv("UPLOAD_MAX_BYTES", str(50 * 1024 * 1024)))
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:

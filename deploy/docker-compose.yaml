@@ -22,6 +22,35 @@ services:
     networks:
       - backend
 
+  minio:
+    image: minio/minio:latest
+    container_name: ticket_minio
+    restart: always
+
+    env_file:
+      - ../.env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+
+    command: server /data --console-address ":9001"
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    volumes:
+      - minio_data:/data
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - backend
+
   migrations:
     build:
       context: ../migration_services
@@ -101,10 +130,20 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8082
       POSTGRES_HOST: postgres
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-minio}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-ticketrush-media}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/ticketrush-media}
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-52428800}
 
     depends_on:
       migrations:
         condition: service_completed_successfully
+      minio:
+        condition: service_healthy
 
     ports:
       - "8082:8082"
@@ -118,6 +157,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_USER_API_URL: ${VITE_USER_API_URL:-/user-api}
+        VITE_EVENT_API_URL: ${VITE_EVENT_API_URL:-/event-api/api/v1}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
         VITE_OAUTH_REDIRECT_BASE_URL: ${VITE_OAUTH_REDIRECT_BASE_URL:-}
@@ -137,6 +177,7 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:
 
 networks:
   backend:

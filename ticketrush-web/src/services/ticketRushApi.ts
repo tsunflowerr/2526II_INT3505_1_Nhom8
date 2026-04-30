@@ -1,4 +1,4 @@
-import { buildDemoTicketRushState, generateSeats } from '../data/demoTicketRush'
+import { generateSeats } from '../data/demoTicketRush'
 import type {
   Booking,
   DashboardMetrics,
@@ -23,6 +23,52 @@ import type {
 const STORAGE_KEY = 'ticketrush.mock.state.v2'
 const HOLD_DURATION_MS = 10 * 60 * 1000
 const DEFAULT_USER_ID = 'demo-customer'
+const DEFAULT_EVENT_API_URL = '/event-api/api/v1'
+let catalogBootstrapPromise: Promise<void> | null = null
+function createEmptyState(): TicketRushState {
+  return {
+    events: [],
+    showtimes: [],
+    seats: [],
+    bookings: [],
+    tickets: [],
+    queues: [],
+    notifications: [],
+    soundSearchLogs: [],
+  }
+}
+
+
+type EventApiResponse = {
+  id: string
+  name: string
+  description: string
+  duration_minutes: number
+  event_type: 'EVENT' | 'MOVIE'
+  category?: string | null
+  venue?: string | null
+  city?: string | null
+  address?: string | null
+  organizer?: string | null
+  image_url?: string | null
+  sale_opens_at?: string | null
+  is_flash_sale?: boolean
+  status?: string | null
+  director?: string | null
+  age_rating?: string | null
+  release_date?: string | null
+  language?: string | null
+}
+
+type ShowtimeApiResponse = {
+  id: string
+  event_id: string
+  venue: string
+  address: string
+  start_time: string
+  end_time: string
+  seat_map_name: string
+}
 
 export type EventListFilters = {
   kind?: EventKind | 'ALL'
@@ -49,6 +95,26 @@ export type CreateEventPayload = {
   format?: string
   movie?: MovieMetadata
   soundtracks?: Array<Omit<Soundtrack, 'id' | 'movieEventId'>>
+}
+
+type CreateEventApiRequest = {
+  name: string
+  description: string
+  duration_minutes: number
+  event_type: EventKind
+  category?: string
+  venue?: string
+  city?: string
+  address?: string
+  organizer?: string
+  image_url?: string
+  sale_opens_at?: string
+  is_flash_sale?: boolean
+  status?: string
+  director?: string
+  age_rating?: string
+  release_date?: string
+  language?: string
 }
 
 type SeatStatusResponse = {
@@ -78,33 +144,160 @@ function createId(prefix: string): string {
 }
 
 function readState(): TicketRushState {
-  if (typeof window === 'undefined') return buildDemoTicketRushState()
+  if (typeof window === 'undefined') return createEmptyState()
 
   const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) {
-    const seeded = buildDemoTicketRushState()
-    writeState(seeded)
-    return seeded
-  }
+  if (!raw) throw new Error('TicketRush state is not initialized from backend catalog.')
 
   try {
-    const parsed = JSON.parse(raw) as Partial<TicketRushState>
-    return {
-      ...buildDemoTicketRushState(),
-      ...parsed,
-      notifications: parsed.notifications ?? [],
-      soundSearchLogs: parsed.soundSearchLogs ?? [],
-    }
+    return JSON.parse(raw) as TicketRushState
   } catch {
-    const seeded = buildDemoTicketRushState()
-    writeState(seeded)
-    return seeded
+    throw new Error('TicketRush state is corrupted. Reload data from backend.')
   }
 }
 
 function writeState(state: TicketRushState): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+function getEventApiBaseUrl(): string {
+  const fromEnv = (import.meta as any).env?.VITE_EVENT_API_URL as string | undefined
+  return fromEnv?.trim() ? fromEnv.trim().replace(/\/$/, '') : DEFAULT_EVENT_API_URL
+}
+
+async function fetchEventApi<T>(path: string): Promise<T> {
+  const response = await fetch(`${getEventApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
+    headers: { accept: 'application/json' },
+  })
+  if (!response.ok) throw new Error('Unable to fetch event catalog from backend.')
+  const payload = (await response.json()) as { data: T }
+  return payload.data
+}
+
+async function postEventApi<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${getEventApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error('Unable to create event from admin panel.')
+  }
+  const payload = (await response.json()) as { data: T }
+  return payload.data
+}
+
+function normalizeMovieMetadata(event: EventApiResponse): MovieMetadata | undefined {
+  if (event.event_type !== 'MOVIE') return undefined
+  return {
+    director: event.director ?? 'Unknown',
+    cast: ['TBA'],
+    durationMinutes: event.duration_minutes,
+    ageRating: event.age_rating ?? 'K',
+    trailerUrl: '',
+    genres: [event.category ?? 'Cinema'],
+    synopsis: event.description || 'No synopsis available.',
+  }
+}
+
+function buildFallbackSections(eventKind: EventKind): SeatSectionInput[] {
+  if (eventKind === 'MOVIE') {
+    return [
+      { name: 'Front', rowCount: 2, seatsPerRow: 10, seatClass: 'STANDARD', price: 120000 },
+      { name: 'Center', rowCount: 3, seatsPerRow: 10, seatClass: 'VIP', price: 180000 },
+      { name: 'Back', rowCount: 3, seatsPerRow: 10, seatClass: 'PREMIUM', price: 260000 },
+    ]
+  }
+  return [
+    { name: 'Floor', rowCount: 4, seatsPerRow: 12, seatClass: 'STANDARD', price: 150000 },
+    { name: 'Middle', rowCount: 3, seatsPerRow: 12, seatClass: 'VIP', price: 240000 },
+    { name: 'Premium', rowCount: 2, seatsPerRow: 12, seatClass: 'PREMIUM', price: 320000 },
+  ]
+}
+
+async function seedCatalogFromBackend(): Promise<void> {
+  const apiEvents = await fetchEventApi<EventApiResponse[]>('/events?page=1&page_size=40')
+  if (!apiEvents.length) throw new Error('No events returned from backend catalog.')
+
+  const state = createEmptyState()
+  const events: TicketRushEvent[] = []
+  const showtimes: Showtime[] = []
+  const seats: Seat[] = []
+
+  for (const item of apiEvents) {
+    const apiShowtimes = await fetchEventApi<ShowtimeApiResponse[]>(`/events/${item.id}/showtimes`)
+    if (!apiShowtimes.length) continue
+
+    const primaryShowtime = apiShowtimes[0]
+    const start = new Date(primaryShowtime.start_time)
+    const date = start.toISOString().slice(0, 10)
+    const time = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+    const kind = item.event_type
+    const sections = buildFallbackSections(kind)
+
+    const event: TicketRushEvent = {
+      id: item.id,
+      kind,
+      showtimeId: primaryShowtime.id,
+      name: item.name,
+      category: (kind === 'MOVIE' ? 'Cinema' : (item.category as EventCategory | undefined)) ?? 'Festival',
+      date,
+      time,
+      venue: item.venue ?? primaryShowtime.venue,
+      city: item.city ?? 'Ho Chi Minh City',
+      address: item.address ?? primaryShowtime.address,
+      organizer: item.organizer ?? (kind === 'MOVIE' ? 'TicketRush Cinema' : 'TicketRush'),
+      priceFrom: sections[0].price,
+      imageUrl:
+        item.image_url ??
+        'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1000&q=80',
+      status: (item.status as TicketStatus | undefined) ?? (item.is_flash_sale ? 'Flash Sale' : 'Available'),
+      capacity: sections.reduce((sum, section) => sum + section.rowCount * section.seatsPerRow, 0),
+      sold: 0,
+      tags: [kind === 'MOVIE' ? 'movie' : 'event', (item.category ?? 'live').toLowerCase()],
+      description: item.description || 'No description provided.',
+      saleOpensAt: item.sale_opens_at ?? new Date().toISOString(),
+      isFlashSale: Boolean(item.is_flash_sale),
+      movie: normalizeMovieMetadata(item),
+      soundtracks: kind === 'MOVIE' ? [] : undefined,
+    }
+    events.push(event)
+
+    for (const apiShowtime of apiShowtimes) {
+      showtimes.push({
+        id: apiShowtime.id,
+        eventId: item.id,
+        venue: apiShowtime.venue,
+        address: apiShowtime.address,
+        startTime: apiShowtime.start_time,
+        endTime: apiShowtime.end_time,
+        seatMapName: apiShowtime.seat_map_name,
+        cinemaName: kind === 'MOVIE' ? apiShowtime.venue : undefined,
+        screenName: kind === 'MOVIE' ? 'Screen 1' : undefined,
+        format: kind === 'MOVIE' ? '2D' : undefined,
+      })
+      seats.push(...generateSeats(apiShowtime.id, sections))
+    }
+  }
+
+  if (!events.length) throw new Error('Backend returned empty catalog after normalization.')
+  writeState({
+    ...state,
+    events,
+    showtimes,
+    seats,
+  })
+}
+
+async function ensureCatalogBootstrap() {
+  if (!catalogBootstrapPromise) {
+    catalogBootstrapPromise = seedCatalogFromBackend()
+  }
+  await catalogBootstrapPromise
 }
 
 function releaseExpiredHolds(state: TicketRushState): TicketRushState {
@@ -231,6 +424,7 @@ export function formatDate(date: string): string {
 }
 
 export async function listEvents(filters: EventListFilters = {}): Promise<EventItem[]> {
+  await ensureCatalogBootstrap()
   await delay()
   const state = getFreshState()
   const normalizedQuery = filters.query?.trim().toLowerCase() ?? ''
@@ -248,6 +442,7 @@ export async function listEvents(filters: EventListFilters = {}): Promise<EventI
 }
 
 export async function getEvent(eventId: string): Promise<TicketRushEvent | undefined> {
+  await ensureCatalogBootstrap()
   await delay()
   const state = getFreshState()
   const event = state.events.find((item) => item.id === eventId)
@@ -255,18 +450,21 @@ export async function getEvent(eventId: string): Promise<TicketRushEvent | undef
 }
 
 export async function getShowtime(showtimeId: string): Promise<Showtime | undefined> {
+  await ensureCatalogBootstrap()
   await delay()
   const state = getFreshState()
   return state.showtimes.find((item) => item.id === showtimeId)
 }
 
 export async function getShowtimesByEvent(eventId: string): Promise<Showtime[]> {
+  await ensureCatalogBootstrap()
   await delay()
   const state = getFreshState()
   return state.showtimes.filter((showtime) => showtime.eventId === eventId)
 }
 
 export async function getSeatsStatus(showtimeId: string): Promise<SeatStatusResponse> {
+  await ensureCatalogBootstrap()
   await delay(150)
   const state = getFreshState()
   const seats = state.seats
@@ -285,6 +483,7 @@ export async function getSeatsStatus(showtimeId: string): Promise<SeatStatusResp
 }
 
 export async function holdSeats(showtimeId: string, seatIds: string[], userId = DEFAULT_USER_ID): Promise<Booking> {
+  await ensureCatalogBootstrap()
   await delay(260)
   const state = getFreshState()
   const seats = state.seats.filter((seat) => seat.showtimeId === showtimeId && seatIds.includes(seat.id))
@@ -323,12 +522,14 @@ export async function holdSeats(showtimeId: string, seatIds: string[], userId = 
 }
 
 export async function getBookingDetail(bookingId: string): Promise<BookingDetail | undefined> {
+  await ensureCatalogBootstrap()
   await delay(160)
   const state = getFreshState()
   return getBookingDetailFromState(state, bookingId)
 }
 
 export async function cancelBooking(bookingId: string): Promise<void> {
+  await ensureCatalogBootstrap()
   await delay(180)
   const state = getFreshState()
   writeState({
@@ -345,6 +546,7 @@ export async function cancelBooking(bookingId: string): Promise<void> {
 }
 
 export async function confirmBooking(bookingId: string): Promise<BookingDetail> {
+  await ensureCatalogBootstrap()
   await delay(320)
   const state = getFreshState()
   const detail = getBookingDetailFromState(state, bookingId)
@@ -399,6 +601,7 @@ export async function confirmBooking(bookingId: string): Promise<BookingDetail> 
 }
 
 export async function listTickets(): Promise<BookingDetail[]> {
+  await ensureCatalogBootstrap()
   await delay(180)
   const state = getFreshState()
   return state.bookings
@@ -408,6 +611,7 @@ export async function listTickets(): Promise<BookingDetail[]> {
 }
 
 export async function joinQueue(showtimeId: string): Promise<QueueSession> {
+  await ensureCatalogBootstrap()
   await delay(180)
   const state = getFreshState()
   const existing = state.queues.find((queue) => queue.showtimeId === showtimeId && !queue.accessGranted)
@@ -427,6 +631,7 @@ export async function joinQueue(showtimeId: string): Promise<QueueSession> {
 }
 
 export async function getQueueStatus(token: string): Promise<QueueSession | undefined> {
+  await ensureCatalogBootstrap()
   await delay(120)
   const state = getFreshState()
   const queue = state.queues.find((item) => item.token === token)
@@ -446,77 +651,49 @@ export async function getQueueStatus(token: string): Promise<QueueSession | unde
 }
 
 export async function createEvent(payload: CreateEventPayload): Promise<TicketRushEvent> {
-  await delay(260)
-  const state = getFreshState()
-  const eventId = createId(payload.kind === 'MOVIE' ? 'movie' : 'event')
-  const showtimeId = createId('showtime')
-  const seatCount = payload.sections.reduce((sum, section) => sum + section.rowCount * section.seatsPerRow, 0)
-  const priceFrom = Math.min(...payload.sections.map((section) => section.price))
-  const soundtracks: Soundtrack[] = (payload.soundtracks ?? []).map((item) => ({
-    ...item,
-    id: createId('soundtrack'),
-    movieEventId: eventId,
-  }))
-
-  const event: TicketRushEvent = {
-    id: eventId,
-    showtimeId,
-    kind: payload.kind,
+  const apiPayload: CreateEventApiRequest = {
     name: payload.name,
+    description: payload.description,
+    duration_minutes:
+      payload.kind === 'MOVIE'
+        ? payload.movie?.durationMinutes ?? 120
+        : Math.max(60, Math.min(360, Math.round((payload.sections.length || 2) * 60))),
+    event_type: payload.kind,
     category: payload.kind === 'MOVIE' ? 'Cinema' : payload.category,
-    date: payload.date,
-    time: payload.time,
     venue: payload.venue,
     city: payload.city,
     address: payload.address,
     organizer: payload.kind === 'MOVIE' ? 'TicketRush Cinema' : 'TicketRush Admin',
-    priceFrom: Number.isFinite(priceFrom) ? priceFrom : 0,
-    imageUrl:
-      payload.imageUrl ||
-      (payload.kind === 'MOVIE'
-        ? 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1000&q=80'
-        : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1000&q=80'),
+    image_url: payload.imageUrl,
+    sale_opens_at: new Date().toISOString(),
+    is_flash_sale: payload.isFlashSale,
     status: payload.status,
-    capacity: seatCount,
-    sold: 0,
-    tags: [payload.kind.toLowerCase(), payload.category.toLowerCase(), payload.isFlashSale ? 'flash sale' : 'standard sale'],
-    description: payload.description,
-    saleOpensAt: new Date().toISOString(),
-    isFlashSale: payload.isFlashSale,
-    movie: payload.kind === 'MOVIE' ? payload.movie : undefined,
-    soundtracks: payload.kind === 'MOVIE' ? soundtracks : undefined,
+    director: payload.kind === 'MOVIE' ? payload.movie?.director : undefined,
+    age_rating: payload.kind === 'MOVIE' ? payload.movie?.ageRating : undefined,
+    release_date: payload.kind === 'MOVIE' ? `${payload.date}T00:00:00Z` : undefined,
+    language: payload.kind === 'MOVIE' ? 'Vietnamese' : undefined,
   }
-
-  const showtime: Showtime = {
-    id: showtimeId,
-    eventId,
-    venue: payload.venue,
-    address: payload.address,
-    startTime: `${payload.date}T${payload.time}:00+07:00`,
-    endTime: `${payload.date}T23:00:00+07:00`,
-    seatMapName: `${payload.venue} seating map`,
-    cinemaName: payload.kind === 'MOVIE' ? payload.cinemaName || payload.venue : undefined,
-    screenName: payload.kind === 'MOVIE' ? payload.screenName || 'Screen 1' : undefined,
-    format: payload.kind === 'MOVIE' ? payload.format || '2D' : undefined,
+  const created = await postEventApi<EventApiResponse>('/events', apiPayload)
+  catalogBootstrapPromise = null
+  resetDemoState()
+  await ensureCatalogBootstrap()
+  const state = getFreshState()
+  const existing = state.events.find((event) => event.id === created.id)
+  if (!existing) {
+    throw new Error('Event was created but not found in refreshed catalog.')
   }
-
-  writeState({
-    ...state,
-    events: [event, ...state.events],
-    showtimes: [showtime, ...state.showtimes],
-    seats: [...generateSeats(showtimeId, payload.sections), ...state.seats],
-  })
-
-  return event
+  return existing
 }
 
 export async function listNotifications(userId = DEFAULT_USER_ID): Promise<NotificationItem[]> {
+  await ensureCatalogBootstrap()
   await delay(120)
   const state = getFreshState()
   return state.notifications.filter((notification) => notification.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
+  await ensureCatalogBootstrap()
   await delay(100)
   const state = getFreshState()
   writeState({
@@ -528,6 +705,7 @@ export async function markNotificationRead(notificationId: string): Promise<void
 }
 
 export async function recognizeHummedSong(audioBlob: Blob): Promise<SoundSearchResult[]> {
+  await ensureCatalogBootstrap()
   await delay(1300)
   const state = getFreshState()
   const audioWeight = Math.min(6, Math.floor(audioBlob.size / 10000))
@@ -565,6 +743,7 @@ export async function recognizeHummedSong(audioBlob: Blob): Promise<SoundSearchR
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+  await ensureCatalogBootstrap()
   await delay(180)
   const state = getFreshState()
   const events = state.events.map((event) => enrichEvent(state, event))
@@ -638,5 +817,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 }
 
 export function resetDemoState(): void {
-  writeState(buildDemoTicketRushState())
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(STORAGE_KEY)
+  }
+  catalogBootstrapPromise = null
 }

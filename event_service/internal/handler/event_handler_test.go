@@ -19,6 +19,8 @@ import (
 type eventServiceMock struct {
 	createFn func(req dto.CreateEventRequest) (*dto.EventResponse, error)
 	getFn    func(eventID uuid.UUID) (*dto.EventResponse, error)
+	getShowtimeFn func(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
+	listShowtimesFn func(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
 	listFn   func(query dto.ListEventsQuery) ([]dto.EventResponse, int64, int, error)
 	updateFn func(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error)
 	deleteFn func(eventID uuid.UUID) error
@@ -32,6 +34,18 @@ func (m *eventServiceMock) GetEvent(eventID uuid.UUID) (*dto.EventResponse, erro
 }
 func (m *eventServiceMock) ListEvents(query dto.ListEventsQuery) ([]dto.EventResponse, int64, int, error) {
 	return m.listFn(query)
+}
+func (m *eventServiceMock) GetShowtime(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+	if m.getShowtimeFn == nil {
+		return nil, nil
+	}
+	return m.getShowtimeFn(showtimeID)
+}
+func (m *eventServiceMock) ListShowtimesByEvent(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+	if m.listShowtimesFn == nil {
+		return []dto.ShowtimeResponse{}, nil
+	}
+	return m.listShowtimesFn(eventID)
 }
 func (m *eventServiceMock) UpdateEvent(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error) {
 	return m.updateFn(eventID, req)

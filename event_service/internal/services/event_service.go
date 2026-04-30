@@ -13,6 +13,8 @@ type EventService interface {
 	CreateEvent(req dto.CreateEventRequest) (*dto.EventResponse, error)
 	GetEvent(eventID uuid.UUID) (*dto.EventResponse, error)
 	ListEvents(query dto.ListEventsQuery) ([]dto.EventResponse, int64, int, error)
+	GetShowtime(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
+	ListShowtimesByEvent(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
 	UpdateEvent(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error)
 	DeleteEvent(eventID uuid.UUID) error
 }
@@ -72,6 +74,16 @@ func (s *eventService) ListEvents(query dto.ListEventsQuery) ([]dto.EventRespons
 	totalPages := int(math.Ceil(float64(total) / float64(query.PageSize)))
 
 	return responses, total, totalPages, nil
+}
+
+func (s *eventService) GetShowtime(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+	s.logger.Debug("getting showtime", zap.String("showtime_id", showtimeID.String()))
+	return s.repository.GetShowtimeByID(showtimeID)
+}
+
+func (s *eventService) ListShowtimesByEvent(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+	s.logger.Debug("listing event showtimes", zap.String("event_id", eventID.String()))
+	return s.repository.ListShowtimesByEventID(eventID)
 }
 
 func (s *eventService) UpdateEvent(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error) {

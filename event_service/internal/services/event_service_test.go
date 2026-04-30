@@ -15,6 +15,8 @@ type eventRepoMock struct {
 	createFn     func(req dto.CreateEventRequest) (*models.Event, error)
 	getByIDFn    func(eventID uuid.UUID) (*models.Event, error)
 	listFn       func(query dto.ListEventsQuery) ([]models.Event, int64, error)
+	getShowtimeFn func(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
+	listShowtimesFn func(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
 	updateFn     func(eventID uuid.UUID, req dto.UpdateEventRequest) (*models.Event, error)
 	deleteFn     func(eventID uuid.UUID) error
 	createCalls  int
@@ -42,6 +44,20 @@ func (m *eventRepoMock) List(query dto.ListEventsQuery) ([]models.Event, int64, 
 func (m *eventRepoMock) Update(eventID uuid.UUID, req dto.UpdateEventRequest) (*models.Event, error) {
 	m.updateCalls++
 	return m.updateFn(eventID, req)
+}
+
+func (m *eventRepoMock) GetShowtimeByID(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+	if m.getShowtimeFn == nil {
+		return nil, nil
+	}
+	return m.getShowtimeFn(showtimeID)
+}
+
+func (m *eventRepoMock) ListShowtimesByEventID(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+	if m.listShowtimesFn == nil {
+		return []dto.ShowtimeResponse{}, nil
+	}
+	return m.listShowtimesFn(eventID)
 }
 
 func (m *eventRepoMock) Delete(eventID uuid.UUID) error {

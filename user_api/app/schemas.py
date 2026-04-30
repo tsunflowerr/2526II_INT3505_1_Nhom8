@@ -35,6 +35,11 @@ class OAuthSchema(Schema):
 class UpdateMeSchema(Schema):
     full_name = fields.String(validate=validate.Length(min=1, max=120))
     avatar_url = fields.Url(allow_none=True)
+    gender = fields.String(allow_none=True, validate=validate.OneOf(["male", "female", "other"]))
+    age = fields.Integer(allow_none=True, validate=validate.Range(min=1, max=120))
+    address = fields.String(allow_none=True, validate=validate.Length(max=255))
+    phone_number = fields.String(allow_none=True, validate=validate.Length(max=32))
+    bio = fields.String(allow_none=True, validate=validate.Length(max=500))
 
 
 class TokenPairSchema(Schema):
@@ -48,6 +53,11 @@ class UserSchema(Schema):
     email = fields.Email(allow_none=True)
     full_name = fields.String(required=True)
     avatar_url = fields.String(allow_none=True)
+    gender = fields.String(allow_none=True)
+    age = fields.Integer(allow_none=True)
+    address = fields.String(allow_none=True)
+    phone_number = fields.String(allow_none=True)
+    bio = fields.String(allow_none=True)
     provider = fields.String(required=True)
     role = fields.String(required=True)
     status = fields.String(required=True)
@@ -67,6 +77,11 @@ def user_to_dict(user):
         "email": user.email,
         "full_name": user.full_name,
         "avatar_url": user.avatar_url,
+        "gender": user.gender,
+        "age": user.age,
+        "address": user.address,
+        "phone_number": user.phone_number,
+        "bio": user.bio,
         "provider": user.provider.value,
         "role": user.role.value,
         "status": user.status.value,

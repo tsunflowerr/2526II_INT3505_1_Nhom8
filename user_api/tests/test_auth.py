@@ -1,6 +1,9 @@
+import io
+
 from app.extensions import db
 from app.models import Provider, RefreshToken, User
 from app.services.oauth_service import OAuthProfile, OAuthVerifier
+from app.services.storage_service import StorageService
 
 
 def register(client, email="ada@example.com", password="correct-password"):
@@ -84,6 +87,41 @@ def test_get_and_update_me(client):
     assert me.status_code == 200
     assert me.get_json()["email"] == "ada@example.com"
 
-    updated = client.patch("/users/me", headers=headers, json={"full_name": "Ada Byron"})
+    updated = client.patch(
+        "/users/me",
+        headers=headers,
+        json={
+            "full_name": "Ada Byron",
+            "gender": "female",
+            "age": 25,
+            "address": "District 1, Ho Chi Minh City",
+            "phone_number": "+84999999999",
+            "bio": "Loves concerts and late-night movies.",
+        },
+    )
     assert updated.status_code == 200
     assert updated.get_json()["full_name"] == "Ada Byron"
+    assert updated.get_json()["gender"] == "female"
+    assert updated.get_json()["age"] == 25
+    assert updated.get_json()["address"] == "District 1, Ho Chi Minh City"
+
+
+def test_upload_me_avatar_returns_url(client, monkeypatch):
+    created = register(client).get_json()
+    headers = {"Authorization": f"Bearer {created['access_token']}"}
+
+    def fake_upload(_self, _user_id, _file_storage, *, media_kind):
+        assert media_kind == "avatar"
+        return "http://localhost:9000/ticketrush-media/avatars/demo.png"
+
+    monkeypatch.setattr(StorageService, "upload_user_media", fake_upload)
+
+    response = client.post(
+        "/users/me/media",
+        headers=headers,
+        data={"kind": "avatar", "file": (io.BytesIO(b"fake-image"), "avatar.png")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["url"].startswith("http://localhost:9000/ticketrush-media/")

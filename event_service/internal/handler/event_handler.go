@@ -30,8 +30,14 @@ func (h *EventHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		events.POST("", h.CreateEvent)
 		events.GET("", h.ListEvents)
 		events.GET("/:id", h.GetEvent)
+		events.GET("/:id/showtimes", h.ListShowtimesByEvent)
 		events.PUT("/:id", h.UpdateEvent)
 		events.DELETE("/:id", h.DeleteEvent)
+	}
+
+	showtimes := rg.Group("/showtimes")
+	{
+		showtimes.GET("/:id", h.GetShowtime)
 	}
 }
 
@@ -209,6 +215,40 @@ func (h *EventHandler) DeleteEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.SuccessResponse{
 		Message: "event deleted successfully",
 	})
+}
+
+func (h *EventHandler) GetShowtime(c *gin.Context) {
+	showtimeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "invalid showtime ID",
+		})
+		return
+	}
+	showtime, err := h.service.GetShowtime(showtimeID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.SuccessResponse{Data: showtime})
+}
+
+func (h *EventHandler) ListShowtimesByEvent(c *gin.Context) {
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "invalid event ID",
+		})
+		return
+	}
+	showtimes, err := h.service.ListShowtimesByEvent(eventID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.SuccessResponse{Data: showtimes})
 }
 
 func (h *EventHandler) handleError(c *gin.Context, err error) {

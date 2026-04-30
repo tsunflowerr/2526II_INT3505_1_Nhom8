@@ -1,6 +1,8 @@
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
+  CheckCircle2,
   Clock,
   ImagePlus,
   LayoutGrid,
@@ -9,8 +11,10 @@ import {
   Save,
   Ticket,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { createEvent } from '../services/ticketRushApi'
+import type { EventCategory, TicketStatus } from '../types'
 
 type SeatTemplate = 'concert' | 'theater' | 'stadium'
 
@@ -45,7 +49,53 @@ const seatTemplates: Record<SeatTemplate, SeatSection[]> = {
 
 export function AdminCreateEventPage() {
   const [seatTemplate, setSeatTemplate] = useState<SeatTemplate>('concert')
+  const [eventName, setEventName] = useState('')
+  const [category, setCategory] = useState<EventCategory>('Music')
+  const [status, setStatus] = useState<TicketStatus>('Available')
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [venue, setVenue] = useState('')
+  const [city, setCity] = useState('Ho Chi Minh City')
+  const [address, setAddress] = useState('')
+  const [description, setDescription] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const seatSections = useMemo(() => seatTemplates[seatTemplate], [seatTemplate])
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setNotice(null)
+    try {
+      await createEvent({
+        kind: 'EVENT',
+        name: eventName.trim(),
+        category,
+        status,
+        date,
+        time,
+        venue: venue.trim(),
+        city: city.trim(),
+        address: address.trim(),
+        description: description.trim(),
+        imageUrl: imageUrl.trim() || undefined,
+        isFlashSale: status === 'Flash Sale',
+        sections: seatSections.map((section) => ({
+          name: section.name,
+          rowCount: Math.max(1, Math.floor(section.capacity / 12)),
+          seatsPerRow: 12,
+          seatClass: section.name.toLowerCase().includes('vip') ? 'VIP' : section.name.toLowerCase().includes('balcony') ? 'STANDARD' : 'PREMIUM',
+          price: section.price * 1000,
+        })),
+      })
+      setNotice({ tone: 'success', text: 'Event created successfully via backend API.' })
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to create event via API.' })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <section className="create-event-page" aria-labelledby="create-event-title">
@@ -63,7 +113,7 @@ export function AdminCreateEventPage() {
         </Link>
       </div>
 
-      <form className="create-event-layout" onSubmit={(event) => event.preventDefault()}>
+      <form className="create-event-layout" onSubmit={onSubmit}>
         <section className="admin-panel create-main-panel" aria-labelledby="event-basic-title">
           <div className="panel-heading">
             <div>
@@ -84,19 +134,19 @@ export function AdminCreateEventPage() {
           <div className="create-form-grid">
             <label className="field span-2">
               <span>Event name</span>
-              <input type="text" placeholder="Neon Sunset Live" required />
+              <input type="text" placeholder="Neon Sunset Live" value={eventName} onChange={(event) => setEventName(event.target.value)} required />
             </label>
 
             <label className="field">
               <span>Category</span>
               <div className="select-shell">
-                <select defaultValue="Concert" required>
-                  <option>Concert</option>
-                  <option>Sports</option>
-                  <option>Theater</option>
-                  <option>Festival</option>
-                  <option>Workshop</option>
-                  <option>Comedy</option>
+                <select value={category} onChange={(event) => setCategory(event.target.value as EventCategory)} required>
+                  <option value="Music">Music</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Theater">Theater</option>
+                  <option value="Festival">Festival</option>
+                  <option value="Workshop">Workshop</option>
+                  <option value="Comedy">Comedy</option>
                 </select>
               </div>
             </label>
@@ -104,10 +154,11 @@ export function AdminCreateEventPage() {
             <label className="field">
               <span>Status</span>
               <div className="select-shell">
-                <select defaultValue="Draft" required>
-                  <option>Draft</option>
-                  <option>Published</option>
-                  <option>Paused</option>
+                <select value={status} onChange={(event) => setStatus(event.target.value as TicketStatus)} required>
+                  <option value="Available">Available</option>
+                  <option value="Flash Sale">Flash Sale</option>
+                  <option value="Almost Sold Out">Almost Sold Out</option>
+                  <option value="Sold Out">Sold Out</option>
                 </select>
               </div>
             </label>
@@ -116,7 +167,7 @@ export function AdminCreateEventPage() {
               <span>Date</span>
               <div className="input-shell icon-field">
                 <CalendarDays size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="date" required />
+                <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
               </div>
             </label>
 
@@ -124,7 +175,7 @@ export function AdminCreateEventPage() {
               <span>Start time</span>
               <div className="input-shell icon-field">
                 <Clock size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="time" required />
+                <input type="time" value={time} onChange={(event) => setTime(event.target.value)} required />
               </div>
             </label>
 
@@ -132,13 +183,33 @@ export function AdminCreateEventPage() {
               <span>Venue</span>
               <div className="input-shell icon-field">
                 <MapPin size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="text" placeholder="Pulse Hall, Austin TX" required />
+                <input type="text" placeholder="Pulse Hall, Austin TX" value={venue} onChange={(event) => setVenue(event.target.value)} required />
               </div>
+            </label>
+
+            <label className="field">
+              <span>City</span>
+              <input type="text" value={city} onChange={(event) => setCity(event.target.value)} required />
+            </label>
+
+            <label className="field">
+              <span>Address</span>
+              <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} required />
+            </label>
+
+            <label className="field span-2">
+              <span>Poster URL</span>
+              <input type="url" placeholder="https://..." value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} />
             </label>
 
             <label className="field span-2">
               <span>Description</span>
-              <textarea placeholder="Describe the event experience, lineup, entry policy, and highlights." rows={5} />
+              <textarea
+                placeholder="Describe the event experience, lineup, entry policy, and highlights."
+                rows={5}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </label>
           </div>
         </section>
@@ -249,11 +320,19 @@ export function AdminCreateEventPage() {
         </section>
 
         <div className="create-actions">
+          {notice && (
+            <div className={`auth-notice ${notice.tone}`} role="status" aria-live="polite">
+              <span className="auth-notice-icon">
+                {notice.tone === 'success' ? <CheckCircle2 size={18} strokeWidth={2.5} /> : <AlertCircle size={18} strokeWidth={2.5} />}
+              </span>
+              <p>{notice.text}</p>
+            </div>
+          )}
           <button className="secondary-button" type="button">
             Save draft
           </button>
-          <button className="primary-button compact-button" type="submit">
-            Publish event
+          <button className="primary-button compact-button" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Publishing...' : 'Publish event'}
             <span>
               <Save size={18} strokeWidth={2.5} />
             </span>
