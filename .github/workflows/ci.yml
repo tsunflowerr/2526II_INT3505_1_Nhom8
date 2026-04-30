@@ -132,6 +132,15 @@ jobs:
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Validate web OAuth build args
+        if: matrix.name == 'web'
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.VITE_GOOGLE_CLIENT_ID }}" ]; then
+            echo "Missing required secret: VITE_GOOGLE_CLIENT_ID"
+            exit 1
+          fi
+
       - name: Build and push image (non-web)
         if: matrix.name != 'web'
         uses: docker/build-push-action@v6
