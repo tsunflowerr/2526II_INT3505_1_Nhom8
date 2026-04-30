@@ -36,7 +36,25 @@ LOG_LEVEL=info
 
 EVENT_SERVICE_PORT=8080
 BOOKING_API_PORT=8081
+USER_API_PORT=8082
 WEB_PORT=3000
+
+JWT_SECRET=...
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_TTL_SECONDS=900
+REFRESH_TOKEN_TTL_SECONDS=604800
+
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+FACEBOOK_APP_ID=...
+FACEBOOK_APP_SECRET=...
+
+RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+REDIS_URL=redis://redis:6379/0
+
+VITE_USER_API_URL=/user-api
+VITE_GOOGLE_CLIENT_ID=...
+VITE_FACEBOOK_APP_ID=...
 ```
 
 ## 2) Server prerequisites
@@ -63,6 +81,7 @@ The pipeline publishes images:
 - `ghcr.io/<owner>/ticketrush-booking_api:<tag>`
 - `ghcr.io/<owner>/ticketrush-event_service:<tag>`
 - `ghcr.io/<owner>/ticketrush-migration_services:<tag>`
+- `ghcr.io/<owner>/ticketrush-user_api:<tag>`
 - `ghcr.io/<owner>/ticketrush-web:<tag>`
 
 Tags:

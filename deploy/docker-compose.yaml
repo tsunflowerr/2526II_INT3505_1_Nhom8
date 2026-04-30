@@ -116,6 +116,10 @@ services:
     build:
       context: ../ticketrush-web
       dockerfile: Dockerfile
+      args:
+        VITE_USER_API_URL: ${VITE_USER_API_URL:-/user-api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
     image: ticketrush-web:local
     restart: always
 

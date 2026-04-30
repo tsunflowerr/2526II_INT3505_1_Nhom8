@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ArrowRight,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -17,7 +18,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { fetchEvents } from '../services/events'
 import type { EventCategory, EventItem } from '../types'
@@ -34,6 +35,12 @@ const categories: Array<EventCategory | 'All'> = [
 
 const pageSize = 6
 type SortOption = 'date-asc' | 'price-asc' | 'price-desc' | 'name-asc'
+const sortOptions: Array<{ value: SortOption; label: string }> = [
+  { value: 'date-asc', label: 'Soonest first' },
+  { value: 'price-asc', label: 'Lowest price' },
+  { value: 'price-desc', label: 'Highest price' },
+  { value: 'name-asc', label: 'A to Z' },
+]
 
 export function DiscoveryPage() {
   const [events, setEvents] = useState<EventItem[]>([])
@@ -45,10 +52,38 @@ export function DiscoveryPage() {
   const [sort, setSort] = useState<SortOption>('date-asc')
   const [page, setPage] = useState(1)
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
+  const [featuredIndex, setFeaturedIndex] = useState(0)
+  const [isFeaturedSwitching, setIsFeaturedSwitching] = useState(false)
 
   useEffect(() => {
     loadEvents()
   }, [])
+
+  useEffect(() => {
+    setFeaturedIndex(0)
+  }, [events.length])
+
+  useEffect(() => {
+    if (events.length <= 1) return
+
+    let timeoutId: number | null = null
+
+    const intervalId = window.setInterval(() => {
+      setIsFeaturedSwitching(true)
+
+      timeoutId = window.setTimeout(() => {
+        setFeaturedIndex((currentIndex) => (currentIndex + 1) % events.length)
+        setIsFeaturedSwitching(false)
+      }, 320)
+    }, 10000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [events.length])
 
   async function loadEvents() {
     setIsLoading(true)
@@ -94,11 +129,15 @@ export function DiscoveryPage() {
         return first.date.localeCompare(second.date)
       })
   }, [category, date, events, query, sort])
+  const availableDates = useMemo(
+    () => [...new Set(events.map((event) => event.date))].sort((first, second) => first.localeCompare(second)),
+    [events],
+  )
 
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize))
   const visibleEvents = filteredEvents.slice((page - 1) * pageSize, page * pageSize)
   const hasFilters = Boolean(query || date || category !== 'All' || sort !== 'date-asc')
-  const featuredEvent = events[0]
+  const featuredEvent = events[featuredIndex]
 
   function resetFilters() {
     setQuery('')
@@ -116,7 +155,12 @@ export function DiscoveryPage() {
         <div className="confetti confetti-three" aria-hidden="true" />
 
         {featuredEvent ? (
-          <FeaturedEvent event={featuredEvent} onViewTickets={() => setSelectedEvent(featuredEvent)} />
+          <FeaturedEvent
+            key={featuredEvent.id}
+            event={featuredEvent}
+            isSwitching={isFeaturedSwitching}
+            onViewTickets={() => setSelectedEvent(featuredEvent)}
+          />
         ) : (
           <div className="featured-event-card loading-feature">
             <LoaderCircle className="spin" size={34} strokeWidth={2.5} />
@@ -158,30 +202,28 @@ export function DiscoveryPage() {
 
           <label className="field">
             <span>Category</span>
-            <div className="select-shell">
-              <select
-                value={category}
-                onChange={(event) => {
-                  setCategory(event.target.value as EventCategory | 'All')
-                  setPage(1)
-                }}
-              >
-                {categories.map((eventCategory) => (
-                  <option key={eventCategory} value={eventCategory}>
-                    {eventCategory}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FilterSelect
+              value={category}
+              valueLabel={category}
+              ariaLabel="Filter by category"
+              options={categories.map((eventCategory) => ({ value: eventCategory, label: eventCategory }))}
+              onChange={(value) => {
+                setCategory(value as EventCategory | 'All')
+                setPage(1)
+              }}
+            />
           </label>
 
           <label className="field">
             <span>Date</span>
-            <input
-              type="date"
+            <DateFilterCalendar
               value={date}
-              onChange={(event) => {
-                setDate(event.target.value)
+              valueLabel={date ? formatDate(date) : 'All dates'}
+              placeholder="All dates"
+              ariaLabel="Filter by date"
+              availableDates={availableDates}
+              onChange={(value) => {
+                setDate(value)
                 setPage(1)
               }}
             />
@@ -189,20 +231,16 @@ export function DiscoveryPage() {
 
           <label className="field">
             <span>Sort</span>
-            <div className="select-shell">
-              <select
-                value={sort}
-                onChange={(event) => {
-                  setSort(event.target.value as SortOption)
-                  setPage(1)
-                }}
-              >
-                <option value="date-asc">Soonest first</option>
-                <option value="price-asc">Lowest price</option>
-                <option value="price-desc">Highest price</option>
-                <option value="name-asc">A to Z</option>
-              </select>
-            </div>
+            <FilterSelect
+              value={sort}
+              valueLabel={sortOptions.find((option) => option.value === sort)?.label ?? 'Soonest first'}
+              ariaLabel="Sort events"
+              options={sortOptions}
+              onChange={(value) => {
+                setSort(value as SortOption)
+                setPage(1)
+              }}
+            />
           </label>
         </form>
 
@@ -303,15 +341,17 @@ export function DiscoveryPage() {
 
 function FeaturedEvent({
   event,
+  isSwitching,
   onViewTickets,
 }: {
   event: EventItem
+  isSwitching: boolean
   onViewTickets: () => void
 }) {
   const soldPercent = Math.round((event.sold / event.capacity) * 100)
 
   return (
-    <article className="featured-event-card" aria-labelledby="page-title">
+    <article className={isSwitching ? 'featured-event-card is-switching' : 'featured-event-card'} aria-labelledby="page-title">
       <div className="featured-poster">
         <img src={event.imageUrl} alt="" />
         <span className="status-pill">{event.status}</span>
@@ -464,6 +504,254 @@ function Meta({ icon, label, value }: { icon: ReactNode; label: string; value: s
   )
 }
 
+function FilterSelect({
+  value,
+  valueLabel,
+  options,
+  placeholder = 'Select',
+  ariaLabel,
+  onChange,
+}: {
+  value: string
+  valueLabel: string
+  options: Array<{ value: string; label: string }>
+  placeholder?: string
+  ariaLabel: string
+  onChange: (value: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+
+    window.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen])
+
+  return (
+    <div className={isOpen ? 'filter-select open' : 'filter-select'} ref={wrapperRef}>
+      <button
+        className="filter-select-trigger"
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span>{valueLabel || placeholder}</span>
+        <ChevronDown size={18} strokeWidth={2.5} />
+      </button>
+      {isOpen && (
+        <div className="filter-select-menu" role="listbox" aria-label={ariaLabel}>
+          <button
+            className={value === '' ? 'filter-option active' : 'filter-option'}
+            type="button"
+            onClick={() => {
+              onChange('')
+              setIsOpen(false)
+            }}
+          >
+            {placeholder}
+          </button>
+          {options.map((option) => (
+            <button
+              className={option.value === value ? 'filter-option active' : 'filter-option'}
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value)
+                setIsOpen(false)
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DateFilterCalendar({
+  value,
+  valueLabel,
+  placeholder = 'All dates',
+  ariaLabel,
+  availableDates,
+  onChange,
+}: {
+  value: string
+  valueLabel: string
+  placeholder?: string
+  ariaLabel: string
+  availableDates: string[]
+  onChange: (value: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const eventDateSet = useMemo(() => new Set(availableDates), [availableDates])
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    if (!availableDates.length) {
+      const today = new Date()
+      return new Date(today.getFullYear(), today.getMonth(), 1)
+    }
+    return getMonthStartFromISO(availableDates[0])
+  })
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+
+    window.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!value) return
+    setVisibleMonth(getMonthStartFromISO(value))
+  }, [value])
+
+  useEffect(() => {
+    if (value || !availableDates.length) return
+    setVisibleMonth(getMonthStartFromISO(availableDates[0]))
+  }, [availableDates, value])
+
+  const days = useMemo(() => {
+    const firstVisible = startOfWeek(visibleMonth)
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(firstVisible)
+      day.setDate(firstVisible.getDate() + index)
+      return day
+    })
+  }, [visibleMonth])
+
+  const hasPreviousMonth = useMemo(
+    () => availableDates.length > 0 && visibleMonth > getMonthStartFromISO(availableDates[0]),
+    [availableDates, visibleMonth],
+  )
+  const hasNextMonth = useMemo(
+    () => availableDates.length > 0 && visibleMonth < getMonthStartFromISO(availableDates[availableDates.length - 1]),
+    [availableDates, visibleMonth],
+  )
+
+  return (
+    <div className={isOpen ? 'filter-select calendar-filter open' : 'filter-select calendar-filter'} ref={wrapperRef}>
+      <button
+        className="filter-select-trigger"
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span>{valueLabel || placeholder}</span>
+        <ChevronDown size={18} strokeWidth={2.5} />
+      </button>
+      {isOpen && (
+        <div className="calendar-menu" role="dialog" aria-label={ariaLabel}>
+          <div className="calendar-header">
+            <button
+              className="tiny-calendar-nav"
+              type="button"
+              disabled={!hasPreviousMonth}
+              onClick={() => setVisibleMonth((month) => addMonths(month, -1))}
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={16} strokeWidth={2.5} />
+            </button>
+            <strong>{formatMonthYear(visibleMonth)}</strong>
+            <button
+              className="tiny-calendar-nav"
+              type="button"
+              disabled={!hasNextMonth}
+              onClick={() => setVisibleMonth((month) => addMonths(month, 1))}
+              aria-label="Next month"
+            >
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+          <div className="calendar-weekdays">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+          <div className="calendar-grid">
+            {days.map((day) => {
+              const isoValue = toISODate(day)
+              const inMonth = day.getMonth() === visibleMonth.getMonth()
+              const isAvailable = eventDateSet.has(isoValue)
+              const isActive = value === isoValue
+              const isToday = toISODate(day) === toISODate(new Date())
+              return (
+                <button
+                  className={[
+                    'calendar-day',
+                    inMonth ? '' : 'outside',
+                    isAvailable ? 'available' : '',
+                    isActive ? 'active' : '',
+                    isToday ? 'today' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  key={isoValue}
+                  type="button"
+                  disabled={!isAvailable}
+                  onClick={() => {
+                    onChange(isoValue)
+                    setIsOpen(false)
+                  }}
+                >
+                  {day.getDate()}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            className="calendar-clear"
+            type="button"
+            onClick={() => {
+              onChange('')
+              setIsOpen(false)
+            }}
+          >
+            Clear date filter
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StateBlock({
   icon,
   title,
@@ -491,4 +779,35 @@ function formatDate(date: string) {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(`${date}T00:00:00`))
+}
+
+function parseISODate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function getMonthStartFromISO(value: string) {
+  const date = parseISODate(value)
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function addMonths(date: Date, offset: number) {
+  return new Date(date.getFullYear(), date.getMonth() + offset, 1)
+}
+
+function startOfWeek(date: Date) {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
+  firstDay.setDate(firstDay.getDate() - firstDay.getDay())
+  return firstDay
+}
+
+function toISODate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
 }

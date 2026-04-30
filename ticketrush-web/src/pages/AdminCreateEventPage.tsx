@@ -12,7 +12,7 @@ import {
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-type SeatTemplate = 'concert' | 'theater' | 'stadium' | 'custom'
+type SeatTemplate = 'concert' | 'theater' | 'stadium'
 
 type SeatSection = {
   name: string
@@ -41,34 +41,11 @@ const seatTemplates: Record<SeatTemplate, SeatSection[]> = {
     { name: 'Upper Bowl West', capacity: 3600, price: 54, tone: 'standard' },
     { name: 'Supporters', capacity: 1800, price: 38, tone: 'balcony wide' },
   ],
-  custom: [
-    { name: 'Custom A', capacity: 120, price: 80, tone: 'vip' },
-    { name: 'Custom B', capacity: 220, price: 55, tone: 'reserved' },
-  ],
 }
-
-const customSeatCells = Array.from({ length: 96 }, (_, index) => index)
 
 export function AdminCreateEventPage() {
   const [seatTemplate, setSeatTemplate] = useState<SeatTemplate>('concert')
-  const [paintedSeats, setPaintedSeats] = useState<Set<number>>(
-    () => new Set([14, 15, 16, 17, 25, 26, 27, 28, 37, 38, 49, 50]),
-  )
   const seatSections = useMemo(() => seatTemplates[seatTemplate], [seatTemplate])
-
-  function toggleSeatCell(index: number) {
-    setPaintedSeats((currentSeats) => {
-      const nextSeats = new Set(currentSeats)
-
-      if (nextSeats.has(index)) {
-        nextSeats.delete(index)
-      } else {
-        nextSeats.add(index)
-      }
-
-      return nextSeats
-    })
-  }
 
   return (
     <section className="create-event-page" aria-labelledby="create-event-title">
@@ -230,40 +207,20 @@ export function AdminCreateEventPage() {
             >
               Stadium
             </button>
-            <button
-              className={seatTemplate === 'custom' ? 'active' : ''}
-              type="button"
-              role="radio"
-              aria-checked={seatTemplate === 'custom'}
-              onClick={() => setSeatTemplate('custom')}
-            >
-              Draw custom
-            </button>
+            <Link className="secondary-button compact-link" to="/admin/events/new/seat-map">
+              Create new map
+            </Link>
           </div>
 
           <div className="seat-map-builder">
             <div className={`seat-map-preview ${seatTemplate}`} aria-label="Seat map preview">
               <div className="stage">Stage</div>
-              {seatTemplate === 'custom' ? (
-                <div className="custom-seat-canvas" aria-label="Custom seat drawing grid">
-                  {customSeatCells.map((cell) => (
-                    <button
-                      className={paintedSeats.has(cell) ? 'painted' : ''}
-                      key={cell}
-                      type="button"
-                      onClick={() => toggleSeatCell(cell)}
-                      aria-label={`${paintedSeats.has(cell) ? 'Remove' : 'Add'} seat block ${cell + 1}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                seatSections.map((section) => (
-                  <button className={`seat-zone ${section.tone}`} type="button" key={section.name}>
-                    <strong>{section.name}</strong>
-                    <span>{section.capacity} seats</span>
-                  </button>
-                ))
-              )}
+              {seatSections.map((section) => (
+                <button className={`seat-zone ${section.tone}`} type="button" key={section.name}>
+                  <strong>{section.name}</strong>
+                  <span>{section.capacity} seats</span>
+                </button>
+              ))}
             </div>
 
             <div className="seat-section-list">

@@ -11,7 +11,17 @@ import {
   UserRound,
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, getMe, login, register, updateMe, type User } from '../services/userApi'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  ApiError,
+  getMe,
+  login,
+  oauthFacebook,
+  oauthGoogle,
+  register,
+  updateMe,
+  type User,
+} from '../services/userApi'
 import { clearTokens, loadTokens, saveTokens } from '../services/authStorage'
 
 type AuthMode = 'login' | 'register'
@@ -21,8 +31,11 @@ type Notice = {
   tone: NoticeTone
   message: string
 }
+type OAuthProvider = 'google' | 'facebook'
 
 export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const isLogin = mode === 'login'
   const [fullName, setFullName] = useState('')
@@ -38,6 +51,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   const [profileFullName, setProfileFullName] = useState('')
   const [profileAvatarUrl, setProfileAvatarUrl] = useState('')
   const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isOAuthProcessing, setIsOAuthProcessing] = useState(false)
 
   useEffect(() => {
     if (!currentUser) return
@@ -67,6 +81,69 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    const provider = getOAuthProviderFromPath(location.pathname)
+    if (!provider) return
+
+    let cancelled = false
+    const params = new URLSearchParams(location.search)
+    const authorizationCode = params.get('code')
+    const returnedState = params.get('state')
+    const oauthError = params.get('error')
+    const expectedState = sessionStorage.getItem(getOAuthStateStorageKey(provider))
+
+    ;(async () => {
+      setIsOAuthProcessing(true)
+      setNotice(null)
+      if (oauthError) {
+        if (cancelled) return
+        setNotice({ tone: 'error', message: `OAuth failed: ${oauthError}` })
+        navigate('/login', { replace: true })
+        setIsOAuthProcessing(false)
+        return
+      }
+      if (!authorizationCode || !returnedState || !expectedState || returnedState !== expectedState) {
+        if (cancelled) return
+        setNotice({ tone: 'error', message: 'OAuth callback state is invalid. Please try again.' })
+        navigate('/login', { replace: true })
+        setIsOAuthProcessing(false)
+        return
+      }
+
+      sessionStorage.removeItem(getOAuthStateStorageKey(provider))
+
+      try {
+        const redirectUri = getOAuthRedirectUri(provider)
+        const pair =
+          provider === 'google'
+            ? await oauthGoogle({ authorization_code: authorizationCode, redirect_uri: redirectUri })
+            : await oauthFacebook({ authorization_code: authorizationCode, redirect_uri: redirectUri })
+
+        saveTokens(pair, { persist: true })
+        const me = await getMe(pair.access_token)
+        if (cancelled) return
+        setCurrentUser(me)
+        setNotice({ tone: 'success', message: `Signed in as ${me.full_name}.` })
+        navigate('/auth', { replace: true })
+      } catch (error) {
+        if (cancelled) return
+        if (error instanceof ApiError) {
+          setNotice({ tone: 'error', message: error.body?.message ?? error.message })
+        } else {
+          setNotice({ tone: 'error', message: 'OAuth sign-in failed. Please try again.' })
+        }
+        navigate('/login', { replace: true })
+      } finally {
+        if (cancelled) return
+        setIsOAuthProcessing(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname, location.search, navigate])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -148,6 +225,50 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
   }
 
+  function startOAuth(provider: OAuthProvider) {
+    const clientId =
+      provider === 'google'
+        ? ((import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string | undefined)
+        : ((import.meta as any).env?.VITE_FACEBOOK_APP_ID as string | undefined)
+
+    if (!clientId?.trim()) {
+      setNotice({
+        tone: 'error',
+        message:
+          provider === 'google'
+            ? 'Missing VITE_GOOGLE_CLIENT_ID in frontend environment.'
+            : 'Missing VITE_FACEBOOK_APP_ID in frontend environment.',
+      })
+      return
+    }
+
+    const redirectUri = getOAuthRedirectUri(provider)
+    const state = crypto.randomUUID()
+    sessionStorage.setItem(getOAuthStateStorageKey(provider), state)
+
+    if (provider === 'google') {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: 'openid email profile',
+        state,
+        prompt: 'select_account',
+      })
+      window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`)
+      return
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'email,public_profile',
+      state,
+    })
+    window.location.assign(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`)
+  }
+
   return (
     <section className="auth-page" aria-labelledby="auth-title">
       <div className="auth-copy">
@@ -206,9 +327,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
           </div>
         )}
 
-        {isCheckingSession ? (
+        {isCheckingSession || isOAuthProcessing ? (
           <div className="auth-loading" aria-live="polite">
-            Checking session…
+            {isOAuthProcessing ? 'Completing OAuth sign-in…' : 'Checking session…'}
           </div>
         ) : currentUser ? (
           <>
@@ -354,11 +475,21 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         </div>
 
         <div className="social-login-grid">
-          <button className="social-button google" type="button">
+          <button
+            className="social-button google"
+            type="button"
+            onClick={() => startOAuth('google')}
+            disabled={isSubmitting}
+          >
             <span>G</span>
             Google
           </button>
-          <button className="social-button facebook" type="button">
+          <button
+            className="social-button facebook"
+            type="button"
+            onClick={() => startOAuth('facebook')}
+            disabled={isSubmitting}
+          >
             <span>f</span>
             Facebook
           </button>
@@ -451,4 +582,18 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       </form>
     </section>
   )
+}
+
+function getOAuthProviderFromPath(pathname: string): OAuthProvider | null {
+  if (pathname === '/auth/callback/google') return 'google'
+  if (pathname === '/auth/callback/facebook') return 'facebook'
+  return null
+}
+
+function getOAuthStateStorageKey(provider: OAuthProvider) {
+  return `ticketrush.oauth.state.${provider}`
+}
+
+function getOAuthRedirectUri(provider: OAuthProvider) {
+  return `${window.location.origin}/auth/callback/${provider}`
 }

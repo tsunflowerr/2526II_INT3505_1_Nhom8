@@ -114,6 +114,13 @@ export type UpdateMePayload = {
   avatar_url?: string | null
 }
 
+export type OAuthPayload = {
+  id_token?: string
+  access_token?: string
+  authorization_code?: string
+  redirect_uri?: string
+}
+
 export async function register(payload: RegisterPayload): Promise<TokenPair> {
   return requestJson<TokenPair>('/auth/register', { method: 'POST', body: payload })
 }
@@ -128,6 +135,14 @@ export async function refresh(payload: RefreshPayload): Promise<TokenPair> {
 
 export async function logout(payload: RefreshPayload): Promise<void> {
   return requestJson<void>('/auth/logout', { method: 'POST', body: payload })
+}
+
+export async function oauthGoogle(payload: OAuthPayload): Promise<TokenPair> {
+  return requestJson<TokenPair>('/auth/oauth/google', { method: 'POST', body: payload })
+}
+
+export async function oauthFacebook(payload: OAuthPayload): Promise<TokenPair> {
+  return requestJson<TokenPair>('/auth/oauth/facebook', { method: 'POST', body: payload })
 }
 
 export async function getMe(accessToken: string): Promise<User> {

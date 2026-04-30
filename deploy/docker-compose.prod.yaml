@@ -14,6 +14,18 @@ services:
     networks:
       - backend
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
   migrations:
     image: ghcr.io/${REGISTRY_NAMESPACE}/ticketrush-migration_services:${IMAGE_TAG}
     restart: "no"
@@ -73,6 +85,8 @@ services:
     depends_on:
       migrations:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     ports:
       - "${USER_API_PORT:-8082}:${USER_API_PORT:-8082}"
     networks:
