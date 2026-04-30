@@ -4,7 +4,9 @@ import (
 	"errors"
 	"event_service/internal/dto"
 	"event_service/internal/models"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -172,6 +174,75 @@ func TestEventRepository_ErrorPathsWithMock(t *testing.T) {
 		err := repo.Delete(eventID)
 		if err == nil {
 			t.Fatalf("expected error")
+		}
+	})
+}
+
+func TestEventRepository_ShowtimeQueries_WithMock(t *testing.T) {
+	repo, mock := setupEventRepoMockDB(t)
+	showtimeID := uuid.New()
+	eventID := uuid.New()
+	now := time.Now().UTC()
+
+	t.Run("get showtime success", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "event_id", "venue", "address", "start_time", "end_time", "seat_map_name"}).
+			AddRow(showtimeID.String(), eventID.String(), "Venue A", "Address A", now, now.Add(time.Hour), "Map A")
+		mock.ExpectQuery(`SELECT`).
+			WithArgs(showtimeID).
+			WillReturnRows(rows)
+		got, err := repo.GetShowtimeByID(showtimeID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got == nil || got.ID != showtimeID.String() {
+			t.Fatalf("unexpected showtime payload: %+v", got)
+		}
+	})
+
+	t.Run("get showtime not found", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "event_id", "venue", "address", "start_time", "end_time", "seat_map_name"})
+		mock.ExpectQuery(`SELECT`).
+			WithArgs(showtimeID).
+			WillReturnRows(rows)
+		_, err := repo.GetShowtimeByID(showtimeID)
+		if err == nil {
+			t.Fatalf("expected not found error")
+		}
+	})
+
+	t.Run("get showtime internal error", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT`).
+			WithArgs(showtimeID).
+			WillReturnError(errors.New("query failed"))
+		_, err := repo.GetShowtimeByID(showtimeID)
+		if err == nil {
+			t.Fatalf("expected query error")
+		}
+	})
+
+	t.Run("list showtimes by event success", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "event_id", "venue", "address", "start_time", "end_time", "seat_map_name"}).
+			AddRow(uuid.NewString(), eventID.String(), "Venue A", "Address A", now, now.Add(time.Hour), "Map A").
+			AddRow(uuid.NewString(), eventID.String(), "Venue B", "Address B", now.Add(2*time.Hour), now.Add(3*time.Hour), "Map B")
+		mock.ExpectQuery(`SELECT`).
+			WithArgs(eventID).
+			WillReturnRows(rows)
+		got, err := repo.ListShowtimesByEventID(eventID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("expected 2 showtimes, got %d", len(got))
+		}
+	})
+
+	t.Run("list showtimes by event error", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT`).
+			WithArgs(eventID).
+			WillReturnError(fmt.Errorf("query failed"))
+		_, err := repo.ListShowtimesByEventID(eventID)
+		if err == nil {
+			t.Fatalf("expected query error")
 		}
 	})
 }

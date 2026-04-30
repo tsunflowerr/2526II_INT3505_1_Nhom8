@@ -87,6 +87,11 @@ export type User = {
   email: string | null
   full_name: string
   avatar_url: string | null
+  gender: 'male' | 'female' | 'other' | null
+  age: number | null
+  address: string | null
+  phone_number: string | null
+  bio: string | null
   provider: string
   role: string
   status: string
@@ -112,6 +117,11 @@ export type RefreshPayload = {
 export type UpdateMePayload = {
   full_name?: string
   avatar_url?: string | null
+  gender?: 'male' | 'female' | 'other' | null
+  age?: number | null
+  address?: string | null
+  phone_number?: string | null
+  bio?: string | null
 }
 
 export type OAuthPayload = {
@@ -119,6 +129,15 @@ export type OAuthPayload = {
   access_token?: string
   authorization_code?: string
   redirect_uri?: string
+}
+
+export type UploadMediaPayload = {
+  file: File
+  kind?: 'avatar' | 'video'
+}
+
+export type UploadMediaResponse = {
+  url: string
 }
 
 export async function register(payload: RegisterPayload): Promise<TokenPair> {
@@ -155,4 +174,29 @@ export async function updateMe(accessToken: string, payload: UpdateMePayload): P
 
 export async function getUser(accessToken: string, userId: string): Promise<User> {
   return requestJson<User>(`/users/${encodeURIComponent(userId)}`, { method: 'GET', accessToken })
+}
+
+export async function uploadMyMedia(accessToken: string, payload: UploadMediaPayload): Promise<UploadMediaResponse> {
+  const url = `${getBaseUrl()}/users/me/media`
+  const formData = new FormData()
+  formData.set('kind', payload.kind ?? 'avatar')
+  formData.set('file', payload.file)
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      accept: 'application/json',
+    },
+    body: formData,
+  })
+
+  const data = await parseJsonSafe(response)
+  if (!response.ok) {
+    const maybeBody = (data && typeof data === 'object' ? (data as ApiErrorResponse) : undefined)
+    const message = maybeBody?.message ?? response.statusText ?? 'Upload failed'
+    throw new ApiError(response.status, message, maybeBody)
+  }
+
+  return data as UploadMediaResponse
 }

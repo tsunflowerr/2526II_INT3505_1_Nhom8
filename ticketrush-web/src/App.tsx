@@ -28,7 +28,7 @@ function App() {
         <header className="site-header">
           <NavLink className="brand-mark" to="/" aria-label="TicketRush home">
             <span>
-              <Ticket size={22} strokeWidth={2.5} />
+              <Ticket size={18} strokeWidth={2.5} />
             </span>
             TicketRush
           </NavLink>
@@ -45,6 +45,7 @@ function App() {
                   <Bell size={18} strokeWidth={2.5} />
                   Notifications
                 </NavLink>
+                {auth.isAdmin && <NavLink to="/admin">Admin</NavLink>}
                 <NavLink className="user-nav-link" to="/profile">
                   {auth.user?.avatar_url ? <img src={auth.user.avatar_url} alt="" /> : <CircleUserRound size={18} strokeWidth={2.5} />}
                   <span>{auth.user?.full_name ?? 'Profile'}</span>

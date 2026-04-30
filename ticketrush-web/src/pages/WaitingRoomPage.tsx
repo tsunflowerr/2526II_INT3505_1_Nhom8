@@ -1,4 +1,4 @@
-import { ArrowLeft, LoaderCircle, ShieldCheck, Ticket, UsersRound } from 'lucide-react'
+import { ArrowLeft, Clock3, LoaderCircle, ShieldCheck, Ticket, UsersRound, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getEvent, getQueueStatus, getShowtime, joinQueue } from '../services/ticketRushApi'
@@ -46,6 +46,7 @@ export function WaitingRoomPage() {
   }, [navigate, queue])
 
   const progress = queue ? Math.max(0, Math.min(100, 100 - (queue.position / 170) * 100)) : 0
+  const estimatedMinutes = queue ? Math.max(1, Math.ceil(queue.position / Math.max(queue.batchSize, 1))) : null
 
   return (
     <section className="waiting-page" aria-labelledby="waiting-title">
@@ -54,31 +55,47 @@ export function WaitingRoomPage() {
         Back to listing
       </Link>
 
-      <div className="waiting-layout">
-        <div className="waiting-copy">
-          <p className="eyebrow">
-            <UsersRound size={18} strokeWidth={2.5} />
-            Virtual Waiting Room
-          </p>
-          <h1 id="waiting-title">You are in the TicketRush queue.</h1>
-          <p className="hero-text">Access is released in batches to protect the seat database during flash sale traffic. Keep this page open.</p>
-        </div>
+      <div className="waiting-layout waiting-layout-modern">
+        <section className="waiting-card waiting-card-full" aria-live="polite">
+          <div className="waiting-header">
+            <div className="waiting-copy">
+              <p className="eyebrow">
+                <UsersRound size={18} strokeWidth={2.5} />
+                Virtual Waiting Room
+              </p>
+              <h1 id="waiting-title">You are in the TicketRush queue.</h1>
+              <p className="hero-text">Access is released in batches to protect the seat database during flash sale traffic. Keep this page open.</p>
+            </div>
+            <span className="form-icon waiting-loader-icon">
+              {queue?.accessGranted ? <Ticket size={30} strokeWidth={2.5} /> : <LoaderCircle className="spin" size={30} strokeWidth={2.5} />}
+            </span>
+          </div>
 
-        <section className="waiting-card" aria-live="polite">
-          <span className="form-icon">
-            {queue?.accessGranted ? <Ticket size={28} strokeWidth={2.5} /> : <LoaderCircle className="spin" size={28} strokeWidth={2.5} />}
-          </span>
-          <div>
+          <div className="waiting-event-summary">
             <p>{event?.name ?? 'Preparing listing'}</p>
             <h2>{queue?.accessGranted ? 'Your access is ready' : `Position #${queue?.position ?? '...'}`}</h2>
             <span>{showtime?.venue ?? 'TicketRush venue'}</span>
           </div>
 
-          <div className="queue-progress" aria-label={`${Math.round(progress)}% queue progress`}>
-            <span style={{ width: `${progress}%` }} />
+          <div className="waiting-status-strip">
+            <span>
+              <Clock3 size={16} strokeWidth={2.5} />
+              ETA {queue?.accessGranted ? 'Now' : `~${estimatedMinutes ?? '...'} min`}
+            </span>
+            <span>
+              <Zap size={16} strokeWidth={2.5} />
+              Live updates every 1.4s
+            </span>
           </div>
 
-          <div className="waiting-facts">
+          <div className="queue-progress-wrap">
+            <p>Queue progress</p>
+            <div className="queue-progress" aria-label="Queue progress">
+              <span style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+
+          <div className="waiting-facts waiting-facts-modern">
             <div>
               <strong>{queue?.batchSize ?? 50}</strong>
               <span>people / batch</span>

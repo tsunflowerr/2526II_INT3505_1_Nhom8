@@ -5,10 +5,12 @@ import {
   getMe,
   login,
   register,
+  uploadMyMedia,
   updateMe,
   type LoginPayload,
   type RegisterPayload,
   type TokenPair,
+  type UploadMediaPayload,
   type UpdateMePayload,
   type User,
 } from '../services/userApi'
@@ -22,6 +24,7 @@ type AuthContextValue = {
   signIn: (payload: LoginPayload, remember?: boolean) => Promise<User>
   signUp: (payload: RegisterPayload, remember?: boolean) => Promise<User>
   updateProfile: (payload: UpdateMePayload) => Promise<User>
+  uploadMedia: (payload: UploadMediaPayload) => Promise<string>
   signOut: () => void
 }
 
@@ -99,19 +102,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const uploadMedia = useCallback(
+    async (payload: UploadMediaPayload) => {
+      if (!tokens) throw new Error('You must be signed in to upload media.')
+      const uploaded = await uploadMyMedia(tokens.access_token, payload)
+      return uploaded.url
+    },
+    [tokens],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       tokens,
       isLoading,
       isAuthenticated: Boolean(user),
-      isAdmin: user?.role === 'admin',
+      isAdmin: (user?.role ?? '').toLowerCase() === 'admin',
       signIn,
       signUp,
       updateProfile,
+      uploadMedia,
       signOut,
     }),
-    [isLoading, signIn, signOut, signUp, tokens, updateProfile, user],
+    [isLoading, signIn, signOut, signUp, tokens, updateProfile, uploadMedia, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
