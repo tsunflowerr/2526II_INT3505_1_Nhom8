@@ -103,7 +103,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         setIsOAuthProcessing(false)
         return
       }
-      if (!authorizationCode || !returnedState || !expectedState || returnedState !== expectedState) {
+      if (!authorizationCode || !returnedState) {
         if (cancelled) return
         setNotice({ tone: 'error', message: 'OAuth callback state is invalid. Please try again.' })
         navigate('/login', { replace: true })
@@ -111,7 +111,17 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         return
       }
 
-      sessionStorage.removeItem(getOAuthStateStorageKey(provider))
+      if (expectedState && returnedState !== expectedState) {
+        if (cancelled) return
+        setNotice({ tone: 'error', message: 'OAuth callback state is invalid. Please try again.' })
+        navigate('/login', { replace: true })
+        setIsOAuthProcessing(false)
+        return
+      }
+
+      if (expectedState) {
+        sessionStorage.removeItem(getOAuthStateStorageKey(provider))
+      }
 
       try {
         const redirectUri = getOAuthRedirectUri(provider)
