@@ -240,6 +240,17 @@ jobs:
             sleep 5
             curl -f http://localhost:8080/healthz || (echo "Health check failed" && exit 1)
             curl -f http://localhost:${USER_API_PORT:-8082}/healthz || (echo "User API health check failed" && exit 1)
-            curl -f http://localhost:9000/minio/health/live || (echo "MinIO health check failed" && exit 1)
+            MINIO_CID="$(docker compose -f "${COMPOSE_FILE}" ps -q minio)"
+            if [ -z "${MINIO_CID}" ]; then
+              echo "MinIO container was not created"
+              docker compose -f "${COMPOSE_FILE}" ps
+              exit 1
+            fi
+            MINIO_HEALTH="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${MINIO_CID}")"
+            if [ "${MINIO_HEALTH}" != "healthy" ]; then
+              echo "MinIO health check failed (status=${MINIO_HEALTH})"
+              docker logs "${MINIO_CID}" --tail 120 || true
+              exit 1
+            fi
 
             docker compose -f "${COMPOSE_FILE}" logs -n 50
