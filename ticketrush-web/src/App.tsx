@@ -74,6 +74,8 @@ function App() {
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/403" element={<ForbiddenPage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/callback/google" element={<AuthPage initialMode="login" />} />
+        <Route path="/auth/callback/facebook" element={<AuthPage initialMode="login" />} />
         <Route path="/login" element={<AuthPage initialMode="login" />} />
         <Route path="/register" element={<AuthPage initialMode="register" />} />
         <Route path="/admin" element={<RequireAdmin><AdminDashboardPage /></RequireAdmin>} />
