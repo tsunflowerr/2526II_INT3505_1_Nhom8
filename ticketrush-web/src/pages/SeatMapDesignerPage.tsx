@@ -84,7 +84,7 @@ export function SeatMapDesignerPage() {
     const preset = presets[presetIndex]
     const position = clampPosition(preset.width, preset.height, point.x - preset.width / 2, point.y - preset.height / 2)
     const block: SeatBlock = {
-      id: crypto.randomUUID(),
+      id: generateClientId(),
       ...preset,
       rotation: 0,
       ...position,
@@ -513,4 +513,11 @@ export function SeatMapDesignerPage() {
       </div>
     </section>
   )
+}
+
+function generateClientId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }

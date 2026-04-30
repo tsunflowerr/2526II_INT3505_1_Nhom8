@@ -243,7 +243,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
 
     const redirectUri = getOAuthRedirectUri(provider)
-    const state = crypto.randomUUID()
+    const state = generateClientState()
     sessionStorage.setItem(getOAuthStateStorageKey(provider), state)
 
     if (provider === 'google') {
@@ -596,4 +596,11 @@ function getOAuthStateStorageKey(provider: OAuthProvider) {
 
 function getOAuthRedirectUri(provider: OAuthProvider) {
   return `${window.location.origin}/auth/callback/${provider}`
+}
+
+function generateClientState() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `state-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
