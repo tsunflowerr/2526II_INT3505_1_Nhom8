@@ -595,7 +595,9 @@ function getOAuthStateStorageKey(provider: OAuthProvider) {
 }
 
 function getOAuthRedirectUri(provider: OAuthProvider) {
-  return `${window.location.origin}/auth/callback/${provider}`
+  const overrideBase = ((import.meta as any).env?.VITE_OAUTH_REDIRECT_BASE_URL as string | undefined)?.trim()
+  const base = overrideBase ? overrideBase.replace(/\/$/, '') : window.location.origin
+  return `${base}/auth/callback/${provider}`
 }
 
 function generateClientState() {

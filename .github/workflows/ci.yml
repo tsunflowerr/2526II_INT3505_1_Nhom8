@@ -168,6 +168,7 @@ jobs:
             VITE_USER_API_URL=/user-api
             VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
             VITE_FACEBOOK_APP_ID=${{ secrets.VITE_FACEBOOK_APP_ID }}
+            VITE_OAUTH_REDIRECT_BASE_URL=${{ vars.VITE_OAUTH_REDIRECT_BASE_URL }}
 
   deploy-production:
     name: Deploy to production server
