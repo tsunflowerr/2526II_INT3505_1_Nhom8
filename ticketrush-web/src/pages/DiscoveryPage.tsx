@@ -10,28 +10,18 @@ import {
   Frown,
   LoaderCircle,
   MapPin,
+  Mic,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Ticket,
-  UsersRound,
-  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { fetchEvents } from '../services/events'
-import type { EventCategory, EventItem } from '../types'
-
-const categories: Array<EventCategory | 'All'> = [
-  'All',
-  'Concert',
-  'Sports',
-  'Theater',
-  'Festival',
-  'Workshop',
-  'Comedy',
-]
+import { Link } from 'react-router-dom'
+import { formatCurrency, formatDate, listEvents } from '../services/ticketRushApi'
+import type { EventItem } from '../types'
 
 const pageSize = 6
 type SortOption = 'date-asc' | 'price-asc' | 'price-desc' | 'name-asc'
@@ -47,11 +37,9 @@ export function DiscoveryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<EventCategory | 'All'>('All')
   const [date, setDate] = useState('')
   const [sort, setSort] = useState<SortOption>('date-asc')
   const [page, setPage] = useState(1)
-  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [featuredIndex, setFeaturedIndex] = useState(0)
   const [isFeaturedSwitching, setIsFeaturedSwitching] = useState(false)
 
@@ -90,7 +78,7 @@ export function DiscoveryPage() {
     setError(null)
 
     try {
-      const eventList = await fetchEvents()
+      const eventList = await listEvents()
       setEvents(eventList)
     } catch {
       setError('We could not load events right now. Please try again.')
@@ -118,7 +106,6 @@ export function DiscoveryPage() {
 
         return (
           (!normalizedQuery || searchableText.includes(normalizedQuery)) &&
-          (category === 'All' || event.category === category) &&
           (!date || event.date === date)
         )
       })
@@ -128,7 +115,7 @@ export function DiscoveryPage() {
         if (sort === 'name-asc') return first.name.localeCompare(second.name)
         return first.date.localeCompare(second.date)
       })
-  }, [category, date, events, query, sort])
+  }, [date, events, query, sort])
   const availableDates = useMemo(
     () => [...new Set(events.map((event) => event.date))].sort((first, second) => first.localeCompare(second)),
     [events],
@@ -136,12 +123,11 @@ export function DiscoveryPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize))
   const visibleEvents = filteredEvents.slice((page - 1) * pageSize, page * pageSize)
-  const hasFilters = Boolean(query || date || category !== 'All' || sort !== 'date-asc')
+  const hasFilters = Boolean(query || date || sort !== 'date-asc')
   const featuredEvent = events[featuredIndex]
 
   function resetFilters() {
     setQuery('')
-    setCategory('All')
     setDate('')
     setSort('date-asc')
     setPage(1)
@@ -159,7 +145,6 @@ export function DiscoveryPage() {
             key={featuredEvent.id}
             event={featuredEvent}
             isSwitching={isFeaturedSwitching}
-            onViewTickets={() => setSelectedEvent(featuredEvent)}
           />
         ) : (
           <div className="featured-event-card loading-feature">
@@ -186,7 +171,7 @@ export function DiscoveryPage() {
         <form className="filters" onSubmit={(event) => event.preventDefault()}>
           <label className="field search-field">
             <span>Search</span>
-            <div className="input-shell">
+            <div className="input-shell search-with-mic">
               <Search size={20} strokeWidth={2.5} aria-hidden="true" />
               <input
                 type="search"
@@ -197,21 +182,10 @@ export function DiscoveryPage() {
                 }}
                 placeholder="Name, date, category, city..."
               />
+              <Link className="mic-search-button" to="/sound-search" aria-label="Find movie by humming">
+                <Mic size={19} strokeWidth={2.5} />
+              </Link>
             </div>
-          </label>
-
-          <label className="field">
-            <span>Category</span>
-            <FilterSelect
-              value={category}
-              valueLabel={category}
-              ariaLabel="Filter by category"
-              options={categories.map((eventCategory) => ({ value: eventCategory, label: eventCategory }))}
-              onChange={(value) => {
-                setCategory(value as EventCategory | 'All')
-                setPage(1)
-              }}
-            />
           </label>
 
           <label className="field">
@@ -244,22 +218,6 @@ export function DiscoveryPage() {
           </label>
         </form>
 
-        <div className="category-strip" aria-label="Quick category filters">
-          {categories.map((eventCategory) => (
-            <button
-              className={eventCategory === category ? 'chip active' : 'chip'}
-              key={eventCategory}
-              type="button"
-              onClick={() => {
-                setCategory(eventCategory)
-                setPage(1)
-              }}
-            >
-              {eventCategory}
-            </button>
-          ))}
-        </div>
-
         {isLoading ? (
           <StateBlock
             icon={<LoaderCircle className="spin" size={34} strokeWidth={2.5} />}
@@ -282,7 +240,7 @@ export function DiscoveryPage() {
           <StateBlock
             icon={<Frown size={34} strokeWidth={2.5} />}
             title="No matching events"
-            text="Try a different search, category, date, or sort option."
+            text="Try a different search, date, or sort option."
             action={
               hasFilters ? (
                 <button className="secondary-button" type="button" onClick={resetFilters}>
@@ -300,7 +258,6 @@ export function DiscoveryPage() {
                   event={event}
                   key={event.id}
                   index={index}
-                  onViewTickets={() => setSelectedEvent(event)}
                 />
               ))}
             </div>
@@ -332,9 +289,6 @@ export function DiscoveryPage() {
         )}
       </section>
 
-      {selectedEvent && (
-        <TicketDetails event={selectedEvent} onClose={() => setSelectedEvent(null)} />
-      )}
     </>
   )
 }
@@ -342,11 +296,9 @@ export function DiscoveryPage() {
 function FeaturedEvent({
   event,
   isSwitching,
-  onViewTickets,
 }: {
   event: EventItem
   isSwitching: boolean
-  onViewTickets: () => void
 }) {
   const soldPercent = Math.round((event.sold / event.capacity) * 100)
 
@@ -371,7 +323,7 @@ function FeaturedEvent({
           <Meta icon={<CalendarDays size={18} strokeWidth={2.5} />} label="Date" value={formatDate(event.date)} />
           <Meta icon={<Clock size={18} strokeWidth={2.5} />} label="Time" value={event.time} />
           <Meta icon={<MapPin size={18} strokeWidth={2.5} />} label="Venue" value={`${event.venue}, ${event.city}`} />
-          <Meta icon={<CircleDollarSign size={18} strokeWidth={2.5} />} label="From" value={`$${event.priceFrom}`} />
+          <Meta icon={<CircleDollarSign size={18} strokeWidth={2.5} />} label="From" value={formatCurrency(event.priceFrom)} />
         </dl>
 
         <div className="featured-sales">
@@ -384,12 +336,12 @@ function FeaturedEvent({
           </div>
         </div>
 
-        <button className="primary-button featured-cta" type="button" onClick={onViewTickets}>
+        <Link className="primary-button featured-cta" to={`/events/${event.id}`}>
           View tickets
           <span>
             <Ticket size={18} strokeWidth={2.5} />
           </span>
-        </button>
+        </Link>
       </div>
     </article>
   )
@@ -398,11 +350,9 @@ function FeaturedEvent({
 function EventCard({
   event,
   index,
-  onViewTickets,
 }: {
   event: EventItem
   index: number
-  onViewTickets: () => void
 }) {
   const tone = ['violet', 'pink', 'amber', 'mint'][index % 4]
 
@@ -424,73 +374,14 @@ function EventCard({
           <Meta icon={<MapPin size={18} strokeWidth={2.5} />} label="Venue" value={event.venue} />
           <Meta icon={<CircleDollarSign size={18} strokeWidth={2.5} />} label="Price" value={`From $${event.priceFrom}`} />
         </dl>
-        <button className="primary-button" type="button" onClick={onViewTickets}>
+        <Link className="primary-button" to={`/events/${event.id}`}>
           View tickets
           <span>
             <ArrowRight size={18} strokeWidth={2.5} />
           </span>
-        </button>
+        </Link>
       </div>
     </article>
-  )
-}
-
-function TicketDetails({ event, onClose }: { event: EventItem; onClose: () => void }) {
-  const soldPercent = Math.round((event.sold / event.capacity) * 100)
-  const tiers = [
-    ['General Admission', event.priceFrom, 'Flexible standing area'],
-    ['Reserved Seat', event.priceFrom + 32, 'Best value sightlines'],
-    ['VIP Pop Pass', event.priceFrom + 94, 'Priority entry and lounge access'],
-  ] as const
-
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="ticket-modal"
-        aria-labelledby="ticket-detail-title"
-        aria-modal="true"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Close ticket details">
-          <X size={22} strokeWidth={2.5} />
-        </button>
-        <img src={event.imageUrl} alt="" />
-        <div className="ticket-modal-body">
-          <div>
-            <span className="status-pill inline">{event.status}</span>
-            <h2 id="ticket-detail-title">{event.name}</h2>
-            <p>{event.description}</p>
-          </div>
-          <dl className="ticket-facts">
-            <Meta icon={<CalendarDays size={18} strokeWidth={2.5} />} label="Date" value={formatDate(event.date)} />
-            <Meta icon={<Clock size={18} strokeWidth={2.5} />} label="Time" value={event.time} />
-            <Meta icon={<MapPin size={18} strokeWidth={2.5} />} label="Venue" value={`${event.venue}, ${event.city}`} />
-            <Meta icon={<UsersRound size={18} strokeWidth={2.5} />} label="Sold" value={`${soldPercent}% sold`} />
-          </dl>
-          <div className="capacity-bar" aria-label={`${soldPercent}% sold`}>
-            <span style={{ width: `${soldPercent}%` }} />
-          </div>
-          <div className="ticket-tier-grid">
-            {tiers.map(([name, price, detail]) => (
-              <article className="ticket-tier" key={name}>
-                <div>
-                  <h3>{name}</h3>
-                  <p>{detail}</p>
-                </div>
-                <strong>${price}</strong>
-              </article>
-            ))}
-          </div>
-          <button className="primary-button" type="button">
-            Continue checkout
-            <span>
-              <ArrowRight size={18} strokeWidth={2.5} />
-            </span>
-          </button>
-        </div>
-      </section>
-    </div>
   )
 }
 
@@ -771,14 +662,6 @@ function StateBlock({
       {action}
     </div>
   )
-}
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(`${date}T00:00:00`))
 }
 
 function parseISODate(value: string) {
