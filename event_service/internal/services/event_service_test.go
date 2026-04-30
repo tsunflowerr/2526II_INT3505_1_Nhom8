@@ -230,6 +230,55 @@ func TestEventService_AllMethods(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "get showtime success and error",
+			run: func(t *testing.T, svc EventService, mock *eventRepoMock) {
+				mock.getShowtimeFn = func(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+					return &dto.ShowtimeResponse{ID: showtimeID.String(), EventID: eventID.String(), Venue: "Venue A", Address: "Address A"}, nil
+				}
+				got, err := svc.GetShowtime(eventID)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if got == nil || got.ID == "" {
+					t.Fatalf("expected showtime payload")
+				}
+
+				mock.getShowtimeFn = func(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error) {
+					return nil, repoErr
+				}
+				_, err = svc.GetShowtime(eventID)
+				if !errors.Is(err, repoErr) {
+					t.Fatalf("expected %v, got %v", repoErr, err)
+				}
+			},
+		},
+		{
+			name: "list showtimes by event success and error",
+			run: func(t *testing.T, svc EventService, mock *eventRepoMock) {
+				mock.listShowtimesFn = func(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+					return []dto.ShowtimeResponse{
+						{ID: uuid.NewString(), EventID: eventID.String(), Venue: "Venue A", Address: "Address A"},
+						{ID: uuid.NewString(), EventID: eventID.String(), Venue: "Venue B", Address: "Address B"},
+					}, nil
+				}
+				got, err := svc.ListShowtimesByEvent(eventID)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(got) != 2 {
+					t.Fatalf("expected 2 showtimes, got %d", len(got))
+				}
+
+				mock.listShowtimesFn = func(eventID uuid.UUID) ([]dto.ShowtimeResponse, error) {
+					return nil, repoErr
+				}
+				_, err = svc.ListShowtimesByEvent(eventID)
+				if !errors.Is(err, repoErr) {
+					t.Fatalf("expected %v, got %v", repoErr, err)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
