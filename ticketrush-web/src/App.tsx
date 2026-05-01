@@ -24,44 +24,47 @@ function App() {
 
   return (
     <main className={isAdminRoute ? 'app-shell admin-shell-frame' : 'app-shell'}>
-      {!isAdminRoute && (
-        <header className="site-header">
-          <NavLink className="brand-mark" to="/" aria-label="TicketRush home">
-            <span>
-              <Ticket size={18} strokeWidth={2.5} />
-            </span>
-            TicketRush
-          </NavLink>
+      <header className="site-header">
+        <NavLink className="brand-mark" to="/" aria-label="TicketRush home">
+          <span>
+            <Ticket size={18} strokeWidth={2.5} />
+          </span>
+          TicketRush
+        </NavLink>
 
-          <nav className="site-nav" aria-label="Primary navigation">
-            <NavLink to="/">Explore</NavLink>
-            {auth.isAuthenticated ? (
-              <>
-                <NavLink to="/tickets">
-                  <QrCode size={18} strokeWidth={2.5} />
-                  My Tickets
-                </NavLink>
-                <NavLink to="/notifications" aria-label="Notifications">
-                  <Bell size={18} strokeWidth={2.5} />
-                  Notifications
-                </NavLink>
-                {auth.isAdmin && <NavLink to="/admin">Admin</NavLink>}
-                <NavLink className="user-nav-link" to="/profile">
-                  {auth.user?.avatar_url ? <img src={auth.user.avatar_url} alt="" /> : <CircleUserRound size={18} strokeWidth={2.5} />}
-                  <span>{auth.user?.full_name ?? 'Profile'}</span>
-                </NavLink>
-              </>
-            ) : (
-              <>
-                <NavLink to="/login">Sign in</NavLink>
-                <NavLink className="nav-cta" to="/register">
-                  Create account
-                </NavLink>
-              </>
-            )}
-          </nav>
-        </header>
-      )}
+        <nav className="site-nav" aria-label="Primary navigation">
+          <NavLink to="/">Explore</NavLink>
+          {auth.isAuthenticated ? (
+            <>
+              <NavLink to="/tickets">
+                <QrCode size={18} strokeWidth={2.5} />
+                My Tickets
+              </NavLink>
+              <NavLink to="/notifications" aria-label="Notifications">
+                <Bell size={18} strokeWidth={2.5} />
+                Notifications
+              </NavLink>
+              {auth.isAdmin && (
+                <>
+                  <NavLink to="/admin">Admin</NavLink>
+                  <NavLink to="/admin/events/new/seat-map">Seat Maps</NavLink>
+                </>
+              )}
+              <NavLink className="user-nav-link" to="/profile">
+                {auth.user?.avatar_url ? <img src={auth.user.avatar_url} alt="" /> : <CircleUserRound size={18} strokeWidth={2.5} />}
+                <span>{auth.user?.full_name ?? 'Profile'}</span>
+              </NavLink>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login">Sign in</NavLink>
+              <NavLink className="nav-cta" to="/register">
+                Create account
+              </NavLink>
+            </>
+          )}
+        </nav>
+      </header>
 
       <Routes>
         <Route path="/" element={<DiscoveryPage />} />
@@ -81,6 +84,7 @@ function App() {
         <Route path="/register" element={<AuthPage initialMode="register" />} />
         <Route path="/admin" element={<RequireAdmin><AdminDashboardPage /></RequireAdmin>} />
         <Route path="/admin/events/new" element={<RequireAdmin><AdminCreateEventPage /></RequireAdmin>} />
+        <Route path="/admin/events/:eventId/edit" element={<RequireAdmin><AdminCreateEventPage /></RequireAdmin>} />
         <Route path="/admin/events/new/seat-map" element={<RequireAdmin><SeatMapDesignerPage /></RequireAdmin>} />
       </Routes>
     </main>

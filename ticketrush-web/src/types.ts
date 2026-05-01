@@ -70,6 +70,8 @@ export type Showtime = {
   startTime: string
   endTime: string
   seatMapName: string
+  queueEnabled?: boolean
+  queueLimit?: number
   cinemaName?: string
   screenName?: string
   format?: string

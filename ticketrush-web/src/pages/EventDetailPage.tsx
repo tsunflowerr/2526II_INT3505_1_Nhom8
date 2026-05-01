@@ -7,13 +7,14 @@ import {
   LoaderCircle,
   MapPin,
   Music2,
+  Percent,
   ShieldCheck,
   Ticket,
   UsersRound,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { formatCurrency, formatDate, getEvent, getShowtimesByEvent } from '../services/ticketRushApi'
+import { formatCurrency, formatDate, getEvent, getSeatsStatus, getShowtimesByEvent } from '../services/ticketRushApi'
 import type { Showtime, TicketRushEvent } from '../types'
 
 export function EventDetailPage() {
@@ -21,6 +22,7 @@ export function EventDetailPage() {
   const navigate = useNavigate()
   const [event, setEvent] = useState<TicketRushEvent | null>(null)
   const [showtimes, setShowtimes] = useState<Showtime[]>([])
+  const [showtimeStats, setShowtimeStats] = useState<Record<string, { available: number; total: number }>>({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -39,6 +41,23 @@ export function EventDetailPage() {
       cancelled = true
     }
   }, [eventId])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!showtimes.length) return
+      const pairs = await Promise.all(
+        showtimes.map(async (showtime) => {
+          const status = await getSeatsStatus(showtime.id)
+          return [showtime.id, { available: status.available, total: status.total }] as const
+        }),
+      )
+      if (!cancelled) setShowtimeStats(Object.fromEntries(pairs))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showtimes])
 
   if (isLoading) {
     return (
@@ -164,17 +183,42 @@ export function EventDetailPage() {
         </div>
 
         <div className="showtime-grid">
-          {showtimes.map((showtime) => (
-            <article className="showtime-card" key={showtime.id}>
-              <div>
-                <strong>{formatDate(event.date)}</strong>
-                <span>{event.time}</span>
+          {showtimes.map((showtime) => {
+            const stats = showtimeStats[showtime.id]
+            const fillPercent = stats?.total ? Math.round(((stats.total - stats.available) / stats.total) * 100) : 0
+            return (
+            <article className="showtime-card themed-showtime-card" key={showtime.id}>
+              <div className="showtime-card-head">
+                <strong>{formatDate(showtime.startTime.slice(0, 10))}</strong>
+                <span>{new Date(showtime.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
-              <p>{event.kind === 'MOVIE' ? `${showtime.cinemaName} · ${showtime.screenName} · ${showtime.format}` : showtime.seatMapName}</p>
+              <p className="showtime-meta-line">
+                <MapPin size={16} strokeWidth={2.5} />
+                {showtime.venue} · {showtime.address}
+              </p>
+              <div className="showtime-meta-chip-row">
+                <span className="showtime-meta-chip">
+                  <Ticket size={14} strokeWidth={2.5} />
+                  {showtime.seatMapName}
+                </span>
+                <span className="showtime-meta-chip">
+                  <UsersRound size={14} strokeWidth={2.5} />
+                  {showtime.queueEnabled ? 'Queue on' : 'Queue off'}
+                </span>
+              </div>
+              <div className="showtime-fill">
+                <p>
+                  <Percent size={16} strokeWidth={2.5} />
+                  {fillPercent}% full
+                </p>
+                <div className="capacity-bar" aria-label={`${fillPercent}% full`}>
+                  <span style={{ width: `${fillPercent}%` }} />
+                </div>
+              </div>
               <button
                 className="primary-button compact-button"
                 type="button"
-                onClick={() => navigate(event.isFlashSale ? `/queue/${showtime.id}` : `/showtimes/${showtime.id}/seats`)}
+                onClick={() => navigate(showtime.queueEnabled ? `/queue/${showtime.id}` : `/showtimes/${showtime.id}/seats`)}
               >
                 Book Seats
                 <span>
@@ -182,7 +226,7 @@ export function EventDetailPage() {
                 </span>
               </button>
             </article>
-          ))}
+          )})}
         </div>
       </section>
     </section>

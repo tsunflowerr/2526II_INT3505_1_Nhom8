@@ -3,26 +3,21 @@ import {
   CalendarPlus,
   CircleDollarSign,
   ClipboardList,
-  MoreHorizontal,
   Search,
   Ticket,
   TrendingUp,
   UsersRound,
 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { formatCurrency, formatDate, listEvents } from '../services/ticketRushApi'
+import type { EventItem } from '../types'
 
 const metrics = [
   { label: 'Total events', value: '128', detail: '+14 this month', tone: 'violet' },
   { label: 'Tickets sold', value: '42.8k', detail: '86% fulfillment', tone: 'pink' },
   { label: 'Revenue', value: '$1.2M', detail: '+18.4% growth', tone: 'amber' },
   { label: 'Customers', value: '19.6k', detail: '2.1k new', tone: 'mint' },
-]
-
-const rows = [
-  ['Neon Sunset Live', 'Concert', 'May 8, 2026', 'Selling fast', '$64'],
-  ['City Finals Showdown', 'Sports', 'May 12, 2026', 'Few left', '$88'],
-  ['Block Party Weekender', 'Festival', 'May 22, 2026', 'Available', '$39'],
-  ['Rooftop Comedy Jam', 'Comedy', 'Jul 10, 2026', 'Available', '$31'],
 ]
 
 const revenue = [42, 58, 46, 76, 88, 70, 96]
@@ -40,6 +35,29 @@ const funnel = [
 ]
 
 export function AdminDashboardPage() {
+  const [query, setQuery] = useState('')
+  const [events, setEvents] = useState<EventItem[]>([])
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true)
+
+  useEffect(() => {
+    async function loadInventory() {
+      setIsLoadingEvents(true)
+      try {
+        const payload = await listEvents()
+        setEvents(payload)
+      } finally {
+        setIsLoadingEvents(false)
+      }
+    }
+    loadInventory()
+  }, [])
+
+  const visibleEvents = useMemo(() => {
+    const keyword = query.trim().toLowerCase()
+    if (!keyword) return events
+    return events.filter((event) => [event.name, event.category, event.city, event.venue, event.status].join(' ').toLowerCase().includes(keyword))
+  }, [events, query])
+
   return (
     <section className="admin-page" aria-labelledby="admin-title">
       <div className="admin-hero">
@@ -130,7 +148,7 @@ export function AdminDashboardPage() {
             </div>
             <div className="table-search">
               <Search size={18} strokeWidth={2.5} />
-              <input type="search" placeholder="Search events" aria-label="Search admin events" />
+              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search events" aria-label="Search admin events" />
             </div>
           </div>
 
@@ -143,18 +161,20 @@ export function AdminDashboardPage() {
               <span role="columnheader">From</span>
               <span role="columnheader">Actions</span>
             </div>
-            {rows.map((row) => (
-              <div className="table-row" role="row" key={row[0]}>
-                {row.map((cell) => (
-                  <span role="cell" key={cell}>
-                    {cell}
-                  </span>
-                ))}
-                <button className="tiny-icon-button" type="button" aria-label={`Open ${row[0]} actions`}>
-                  <MoreHorizontal size={18} strokeWidth={2.5} />
-                </button>
-              </div>
-            ))}
+            {isLoadingEvents && <div className="table-row" role="row"><span role="cell">Loading...</span></div>}
+            {!isLoadingEvents &&
+              visibleEvents.map((event) => (
+                <div className="table-row" role="row" key={event.id}>
+                  <span role="cell">{event.name}</span>
+                  <span role="cell">{event.category}</span>
+                  <span role="cell">{formatDate(event.date)}</span>
+                  <span role="cell">{event.status}</span>
+                  <span role="cell">{formatCurrency(event.priceFrom)}</span>
+                  <Link className="secondary-button compact-link" to={`/admin/events/${event.id}/edit`}>
+                    Edit
+                  </Link>
+                </div>
+              ))}
           </div>
         </section>
 

@@ -1,311 +1,94 @@
-import { ArrowLeft, Maximize2, Minus, Plus, RotateCw, Save, Ticket } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, PointerEvent } from 'react'
+import { ArrowLeft, Circle, Save, Square, Ticket, Triangle } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 type SeatTone = 'vip' | 'reserved' | 'standard' | 'balcony'
-type SeatShape = 'rect' | 'circle' | 'triangle'
-
-type SeatBlock = {
+type SeatCell = {
   id: string
-  name: string
-  capacity: number
-  price: number
+  row: number
+  col: number
   tone: SeatTone
-  shape: SeatShape
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
 }
 
-type StageItem = {
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
-}
-
-const designerBounds = { width: 1800, height: 1000 }
-
-const presets: Array<Omit<SeatBlock, 'id' | 'x' | 'y' | 'rotation'>> = [
-  { name: 'VIP Pod', capacity: 70, price: 140, tone: 'vip', shape: 'circle', width: 130, height: 130 },
-  { name: 'Reserved Block', capacity: 160, price: 89, tone: 'reserved', shape: 'rect', width: 240, height: 90 },
-  { name: 'Standard Lane', capacity: 230, price: 58, tone: 'standard', shape: 'rect', width: 270, height: 82 },
-  { name: 'Balcony Wing', capacity: 120, price: 45, tone: 'balcony', shape: 'triangle', width: 180, height: 140 },
-]
-
-const defaultBlocks: SeatBlock[] = [
-  { id: 'a', ...presets[0], x: 260, y: 260, rotation: 0 },
-  { id: 'b', ...presets[1], x: 580, y: 310, rotation: 0 },
+const ROWS = 14
+const COLS = 18
+const tones: Array<{ tone: SeatTone; label: string }> = [
+  { tone: 'vip', label: 'VIP' },
+  { tone: 'reserved', label: 'Reserved' },
+  { tone: 'standard', label: 'Standard' },
+  { tone: 'balcony', label: 'Balcony' },
 ]
 
 export function SeatMapDesignerPage() {
-  const [blocks, setBlocks] = useState<SeatBlock[]>(defaultBlocks)
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(defaultBlocks[0]?.id ?? null)
-  const [selectedItem, setSelectedItem] = useState<'stage' | 'block'>('block')
-  const [stage, setStage] = useState<StageItem>({ x: 700, y: 70, width: 420, height: 90, rotation: 0 })
-  const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 0.72 })
-  const [dragState, setDragState] = useState<{ kind: 'stage' | 'block'; id?: string; dx: number; dy: number } | null>(
-    null,
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [rows, setRows] = useState(ROWS)
+  const [cols, setCols] = useState(COLS)
+  const [seatSize, setSeatSize] = useState(26)
+  const [seats, setSeats] = useState<SeatCell[]>(() =>
+    Array.from({ length: ROWS * COLS }, (_, index) => {
+      const row = Math.floor(index / COLS)
+      const col = index % COLS
+      const tone: SeatTone = row < 3 ? 'vip' : row < 7 ? 'reserved' : row < 11 ? 'standard' : 'balcony'
+      return { id: `${toSeatRowLabel(row)}-${col + 1}`, row, col, tone }
+    }),
   )
-  const [resizeState, setResizeState] = useState<{ kind: 'stage' | 'block'; id?: string; startX: number; startY: number; startWidth: number; startHeight: number } | null>(null)
-  const [panStart, setPanStart] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  const [brushTone, setBrushTone] = useState<SeatTone>('vip')
+  const [dragStart, setDragStart] = useState<{ row: number; col: number } | null>(null)
+  const [dragCurrent, setDragCurrent] = useState<{ row: number; col: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [saveNote, setSaveNote] = useState<string | null>(null)
-  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const [seatPrices, setSeatPrices] = useState<Record<SeatTone, number>>({
+    vip: 180000,
+    reserved: 120000,
+    standard: 90000,
+    balcony: 70000,
+  })
 
-  const selectedBlock = useMemo(() => blocks.find((block) => block.id === selectedBlockId) ?? null, [blocks, selectedBlockId])
+  useEffect(() => {
+    setSeats((current) => rebuildSeatGrid(rows, cols, current))
+  }, [rows, cols])
 
-  function toCanvasPoint(clientX: number, clientY: number) {
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return null
-    return {
-      x: (clientX - rect.left - viewport.x) / viewport.scale,
-      y: (clientY - rect.top - viewport.y) / viewport.scale,
+  useEffect(() => {
+    function computeSeatSize() {
+      const container = containerRef.current
+      if (!container) return
+      const width = container.clientWidth - 24
+      const height = 560
+      const maxByWidth = Math.floor((width - cols * 3) / cols)
+      const maxByHeight = Math.floor((height - rows * 3) / rows)
+      setSeatSize(Math.max(6, Math.min(34, maxByWidth, maxByHeight)))
     }
-  }
-
-  function clampPosition(width: number, height: number, x: number, y: number) {
-    return {
-      x: Math.max(0, Math.min(designerBounds.width - width, x)),
-      y: Math.max(0, Math.min(designerBounds.height - height, y)),
+    computeSeatSize()
+    const observer = new ResizeObserver(computeSeatSize)
+    if (containerRef.current) observer.observe(containerRef.current)
+    window.addEventListener('resize', computeSeatSize)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', computeSeatSize)
     }
-  }
+  }, [cols, rows])
+  const selectedSeatIds = useMemo(() => {
+    if (!dragStart || !dragCurrent) return []
+    const minRow = Math.min(dragStart.row, dragCurrent.row)
+    const maxRow = Math.max(dragStart.row, dragCurrent.row)
+    const minCol = Math.min(dragStart.col, dragCurrent.col)
+    const maxCol = Math.max(dragStart.col, dragCurrent.col)
+    return seats
+      .filter((seat) => seat.row >= minRow && seat.row <= maxRow && seat.col >= minCol && seat.col <= maxCol)
+      .map((seat) => seat.id)
+  }, [dragCurrent, dragStart, seats])
+  const seatLookup = useMemo(() => new Map(seats.map((seat) => [`${seat.row}-${seat.col}`, seat])), [seats])
 
-  function onCanvasDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault()
-    const presetIndex = Number(event.dataTransfer.getData('application/x-seat-preset'))
-    if (!Number.isFinite(presetIndex) || !presets[presetIndex]) return
-    const point = toCanvasPoint(event.clientX, event.clientY)
-    if (!point) return
-
-    const preset = presets[presetIndex]
-    const position = clampPosition(preset.width, preset.height, point.x - preset.width / 2, point.y - preset.height / 2)
-    const block: SeatBlock = {
-      id: generateClientId(),
-      ...preset,
-      rotation: 0,
-      ...position,
-    }
-    setBlocks((current) => [...current, block])
-    setSelectedItem('block')
-    setSelectedBlockId(block.id)
-  }
-
-  function onCanvasPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget) return
-    setPanStart({ x: event.clientX, y: event.clientY, panX: viewport.x, panY: viewport.y })
-    setSelectedBlockId(null)
-  }
-
-  function onBlockPointerDown(event: PointerEvent<HTMLButtonElement>, block: SeatBlock) {
-    event.preventDefault()
-    event.stopPropagation()
-    const point = toCanvasPoint(event.clientX, event.clientY)
-    if (!point) return
-    setSelectedItem('block')
-    setSelectedBlockId(block.id)
-    setDragState({ kind: 'block', id: block.id, dx: point.x - block.x, dy: point.y - block.y })
-  }
-
-  function onStagePointerDown(event: PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    const point = toCanvasPoint(event.clientX, event.clientY)
-    if (!point) return
-    setSelectedItem('stage')
-    setSelectedBlockId(null)
-    setDragState({ kind: 'stage', dx: point.x - stage.x, dy: point.y - stage.y })
-  }
-
-  function onCanvasPointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (resizeState) {
-      const point = toCanvasPoint(event.clientX, event.clientY)
-      if (!point) return
-      const deltaX = point.x - resizeState.startX
-      const deltaY = point.y - resizeState.startY
-      const nextWidth = Math.max(60, resizeState.startWidth + deltaX)
-      const nextHeight = Math.max(60, resizeState.startHeight + deltaY)
-
-      if (resizeState.kind === 'stage') {
-        setStage((current) => ({ ...current, width: nextWidth, height: nextHeight }))
-      } else if (resizeState.id) {
-        setBlocks((current) =>
-          current.map((block) =>
-            block.id === resizeState.id ? { ...block, width: nextWidth, height: nextHeight } : block,
-          ),
-        )
-      }
-      return
-    }
-
-    if (dragState) {
-      const point = toCanvasPoint(event.clientX, event.clientY)
-      if (!point) return
-
-      if (dragState.kind === 'stage') {
-        const next = clampPosition(stage.width, stage.height, point.x - dragState.dx, point.y - dragState.dy)
-        setStage((current) => ({ ...current, ...next }))
-      } else if (dragState.kind === 'block' && dragState.id) {
-        setBlocks((current) =>
-          current.map((block) => {
-            if (block.id !== dragState.id) return block
-            const next = clampPosition(block.width, block.height, point.x - dragState.dx, point.y - dragState.dy)
-            return { ...block, ...next }
-          }),
-        )
-      }
-      return
-    }
-
-    if (!panStart) return
-    setViewport((current) => ({
-      ...current,
-      x: panStart.panX + (event.clientX - panStart.x),
-      y: panStart.panY + (event.clientY - panStart.y),
-    }))
-  }
-
-  function onCanvasPointerUp() {
-    setDragState(null)
-    setResizeState(null)
-    setPanStart(null)
-  }
-
-  function applyZoom(deltaY: number) {
-    setViewport((current) => ({
-      ...current,
-      scale: Math.max(0.45, Math.min(2.4, current.scale - deltaY * 0.0014)),
-    }))
-  }
-
-  function updateSelectedBlock(patch: Partial<SeatBlock>) {
-    if (!selectedBlockId) return
-    setBlocks((current) => current.map((block) => (block.id === selectedBlockId ? { ...block, ...patch } : block)))
-  }
-
-  function onBlockResizePointerDown(event: PointerEvent<HTMLSpanElement>, block: SeatBlock) {
-    event.preventDefault()
-    event.stopPropagation()
-    const point = toCanvasPoint(event.clientX, event.clientY)
-    if (!point) return
-    setSelectedItem('block')
-    setSelectedBlockId(block.id)
-    setResizeState({
-      kind: 'block',
-      id: block.id,
-      startX: point.x,
-      startY: point.y,
-      startWidth: block.width,
-      startHeight: block.height,
-    })
-  }
-
-  function onStageResizePointerDown(event: PointerEvent<HTMLSpanElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    const point = toCanvasPoint(event.clientX, event.clientY)
-    if (!point) return
-    setSelectedItem('stage')
-    setSelectedBlockId(null)
-    setResizeState({
-      kind: 'stage',
-      startX: point.x,
-      startY: point.y,
-      startWidth: stage.width,
-      startHeight: stage.height,
-    })
-  }
-
-  function compactLayout() {
-    const sorted = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x)
-    const startX = 80
-    const startY = Math.max(stage.y + stage.height + 80, 180)
-    const gapX = 24
-    const gapY = 22
-    const maxRowWidth = designerBounds.width - 120
-
-    let cursorX = startX
-    let cursorY = startY
-    let currentRowHeight = 0
-
-    const nextBlocks = sorted.map((block) => {
-      if (cursorX + block.width > maxRowWidth) {
-        cursorX = startX
-        cursorY += currentRowHeight + gapY
-        currentRowHeight = 0
-      }
-      const next = { ...block, x: cursorX, y: cursorY }
-      cursorX += block.width + gapX
-      currentRowHeight = Math.max(currentRowHeight, block.height)
-      return next
-    })
-
-    setBlocks(nextBlocks)
-    setSaveNote('Layout adjusted for tighter spacing.')
+  function applyToneToSelection(tone: SeatTone) {
+    if (!selectedSeatIds.length) return
+    const selected = new Set(selectedSeatIds)
+    setSeats((current) => current.map((seat) => (selected.has(seat.id) ? { ...seat, tone } : seat)))
+    setSaveNote(`Updated ${selectedSeatIds.length} seats to ${tone.toUpperCase()}.`)
   }
 
   function saveMap() {
-    setSaveNote(`Seat map saved with ${blocks.length} sections.`)
+    setSaveNote(`Seat map saved with ${seats.length} seats.`)
   }
-
-  const resetViewToContent = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const canvasWidth = canvas.clientWidth
-    const canvasHeight = canvas.clientHeight
-    if (!canvasWidth || !canvasHeight) return
-
-    const allItems = [
-      { x: stage.x, y: stage.y, width: stage.width, height: stage.height },
-      ...blocks.map((block) => ({
-        x: block.x,
-        y: block.y,
-        width: block.width,
-        height: block.height,
-      })),
-    ]
-
-    const minX = Math.min(...allItems.map((item) => item.x))
-    const minY = Math.min(...allItems.map((item) => item.y))
-    const maxX = Math.max(...allItems.map((item) => item.x + item.width))
-    const maxY = Math.max(...allItems.map((item) => item.y + item.height))
-    const contentWidth = Math.max(1, maxX - minX)
-    const contentHeight = Math.max(1, maxY - minY)
-
-    const padding = 80
-    const fitScaleX = (canvasWidth - padding) / contentWidth
-    const fitScaleY = (canvasHeight - padding) / contentHeight
-    const nextScale = Math.max(0.45, Math.min(2.4, Math.min(fitScaleX, fitScaleY)))
-
-    const centeredX = (canvasWidth - contentWidth * nextScale) / 2 - minX * nextScale
-    const centeredY = (canvasHeight - contentHeight * nextScale) / 2 - minY * nextScale
-
-    setViewport({
-      x: centeredX,
-      y: centeredY,
-      scale: nextScale,
-    })
-  }, [blocks, stage.height, stage.width, stage.x, stage.y])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    function handleNativeWheel(event: globalThis.WheelEvent) {
-      event.preventDefault()
-      event.stopPropagation()
-      applyZoom(event.deltaY)
-    }
-
-    canvas.addEventListener('wheel', handleNativeWheel, { passive: false })
-    return () => {
-      canvas.removeEventListener('wheel', handleNativeWheel)
-    }
-  }, [])
 
   return (
     <section className="seat-designer-page" aria-labelledby="seat-designer-title">
@@ -325,188 +108,133 @@ export function SeatMapDesignerPage() {
 
       <div className="seat-designer-layout">
         <aside className="admin-panel seat-designer-sidebar">
-          <h2>Seat presets</h2>
-          <div className="custom-seat-library">
-            {presets.map((preset, index) => (
-              <button
-                key={`${preset.name}-${index}`}
-                className={`library-seat-pill ${preset.tone}`}
-                type="button"
-                draggable
-                onDragStart={(event) => event.dataTransfer.setData('application/x-seat-preset', String(index))}
-              >
-                <strong>{preset.name}</strong>
-                <span>{preset.capacity} seats</span>
-              </button>
+          <h2>Seat type brush</h2>
+          <p>Drag to select an area. Releasing mouse applies the selected seat type automatically.</p>
+          <label className="field">
+            <span>Rows</span>
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={rows}
+              onChange={(event) => setRows(Math.max(1, Math.min(120, Number(event.target.value) || 1)))}
+            />
+          </label>
+          <label className="field">
+            <span>Columns</span>
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={cols}
+              onChange={(event) => setCols(Math.max(1, Math.min(120, Number(event.target.value) || 1)))}
+            />
+          </label>
+          <div className="custom-seat-library seat-tone-tools">
+            {tones.map((item) => (
+              <div key={item.tone} className={`library-seat-pill ${item.tone} ${brushTone === item.tone ? 'active' : ''}`}>
+                <button className="seat-brush-button" type="button" onClick={() => setBrushTone(item.tone)}>
+                  <strong>{item.label}</strong>
+                  <span className="seat-brush-icon">
+                    {item.tone === 'vip' && <Circle size={18} strokeWidth={2.5} />}
+                    {item.tone === 'reserved' && <Square size={18} strokeWidth={2.5} />}
+                    {item.tone === 'standard' && <Triangle size={18} strokeWidth={2.5} />}
+                    {item.tone === 'balcony' && <Ticket size={18} strokeWidth={2.5} />}
+                  </span>
+                </button>
+                <label className="seat-price-input">
+                  Price
+                  <input
+                    type="number"
+                    min={0}
+                    value={seatPrices[item.tone]}
+                    onChange={(event) =>
+                      setSeatPrices((current) => ({
+                        ...current,
+                        [item.tone]: Math.max(0, Number(event.target.value) || 0),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
             ))}
           </div>
 
           <div className="designer-inspector">
-            <h3>Inspector</h3>
+            <h3>Selection</h3>
             {saveNote && <p className="designer-note">{saveNote}</p>}
-            <div className="designer-action-row">
-              <button className="secondary-button" type="button" onClick={compactLayout}>
-                Compact layout
-              </button>
-              <button className="primary-button compact-button" type="button" onClick={saveMap}>
-                Save map
-                <span>
-                  <Save size={16} strokeWidth={2.5} />
-                </span>
-              </button>
-            </div>
-            {selectedItem === 'stage' ? (
-              <div className="designer-inspector-grid">
-                <label className="field">
-                  <span>Selected</span>
-                  <input value="Stage" readOnly />
-                </label>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setStage((s) => ({ ...s, rotation: (s.rotation + 90) % 360 }))}
-                >
-                  <RotateCw size={16} strokeWidth={2.5} />
-                  Rotate 90deg
-                </button>
-              </div>
-            ) : selectedBlock ? (
-              <div className="designer-inspector-grid">
-                <label className="field">
-                  <span>Section name</span>
-                  <input value={selectedBlock.name} onChange={(event) => updateSelectedBlock({ name: event.target.value })} />
-                </label>
-                <label className="field">
-                  <span>Quantity</span>
-                  <input
-                    type="number"
-                    value={selectedBlock.capacity}
-                    min={0}
-                    onChange={(event) => updateSelectedBlock({ capacity: Number(event.target.value) || 0 })}
-                  />
-                </label>
-                <label className="field">
-                  <span>Price</span>
-                  <input
-                    type="number"
-                    value={selectedBlock.price}
-                    min={0}
-                    onChange={(event) => updateSelectedBlock({ price: Number(event.target.value) || 0 })}
-                  />
-                </label>
-                <label className="field">
-                  <span>Shape</span>
-                  <div className="select-shell">
-                    <select value={selectedBlock.shape} onChange={(event) => updateSelectedBlock({ shape: event.target.value as SeatShape })}>
-                      <option value="rect">Rectangle</option>
-                      <option value="circle">Circle</option>
-                      <option value="triangle">Triangle</option>
-                    </select>
-                  </div>
-                </label>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => updateSelectedBlock({ rotation: (selectedBlock.rotation + 90) % 360 })}
-                >
-                  <RotateCw size={16} strokeWidth={2.5} />
-                  Rotate 90deg
-                </button>
-              </div>
-            ) : (
-              <p>Select a seat block or stage to edit.</p>
-            )}
+            <p>{selectedSeatIds.length} seats selected</p>
+            <button className="secondary-button" type="button" onClick={() => { setDragStart(null); setDragCurrent(null) }} disabled={!selectedSeatIds.length}>
+              Clear selection
+            </button>
+            <button className="primary-button compact-button" type="button" onClick={saveMap}>
+              Save map
+              <span>
+                <Save size={16} strokeWidth={2.5} />
+              </span>
+            </button>
+            <p>Current brush: {brushTone.toUpperCase()}</p>
+            <p>Current brush price: {new Intl.NumberFormat('vi-VN').format(seatPrices[brushTone])} VND</p>
           </div>
         </aside>
 
         <section className="admin-panel seat-designer-canvas-panel">
           <div
-            className="seat-designer-canvas"
-            ref={canvasRef}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={onCanvasDrop}
-            onPointerDown={onCanvasPointerDown}
-            onPointerMove={onCanvasPointerMove}
-            onPointerUp={onCanvasPointerUp}
-            onPointerLeave={onCanvasPointerUp}
+            ref={containerRef}
+            className="seat-map-paint-canvas"
+            onMouseUp={() => {
+              setIsDragging(false)
+              applyToneToSelection(brushTone)
+            }}
+            onMouseLeave={() => setIsDragging(false)}
           >
-            <div className="canvas-hint">Drag presets into canvas. Drag stage/sections. Wheel zoom. Drag empty space to pan.</div>
-            <div className="designer-canvas-tools" role="group" aria-label="Canvas zoom controls">
-              <button
-                className="tiny-icon-button"
-                type="button"
-                onClick={() => setViewport((v) => ({ ...v, scale: Math.max(0.45, v.scale - 0.1) }))}
-                aria-label="Zoom out"
+            <div className="seat-map-paint-stage">Stage</div>
+            <div className="seat-map-paint-scroll">
+              <div
+                className="seat-map-paint-grid-with-headers"
+                style={{ gridTemplateColumns: `56px repeat(${cols}, ${seatSize}px)` }}
               >
-                <Minus size={16} strokeWidth={2.5} />
-              </button>
-              <button
-                className="tiny-icon-button"
-                type="button"
-                onClick={() => setViewport((v) => ({ ...v, scale: Math.min(2.4, v.scale + 0.1) }))}
-                aria-label="Zoom in"
-              >
-                <Plus size={16} strokeWidth={2.5} />
-              </button>
-              <button
-                className="tiny-icon-button"
-                type="button"
-                onClick={resetViewToContent}
-                aria-label="Reset view"
-              >
-                <Maximize2 size={16} strokeWidth={2.5} />
-              </button>
-            </div>
-            <div className="designer-canvas-scale">{Math.round(viewport.scale * 100)}%</div>
-            <div
-              className="custom-canvas-content"
-              style={{
-                width: `${designerBounds.width}px`,
-                height: `${designerBounds.height}px`,
-                transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
-              }}
-            >
-              <button
-                className={selectedItem === 'stage' ? 'designer-stage selected' : 'designer-stage'}
-                type="button"
-                onPointerDown={onStagePointerDown}
-                style={{
-                  width: `${stage.width}px`,
-                  height: `${stage.height}px`,
-                  left: `${stage.x}px`,
-                  top: `${stage.y}px`,
-                  transform: `rotate(${stage.rotation}deg)`,
-                }}
-              >
-                Stage
-                <span className="resize-corner" onPointerDown={onStageResizePointerDown} />
-              </button>
-              {blocks.map((block) => (
-                <button
-                  className={[
-                    'custom-seat-block',
-                    block.tone,
-                    `shape-${block.shape}`,
-                    selectedBlockId === block.id && selectedItem === 'block' ? 'selected' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  key={block.id}
-                  type="button"
-                  onPointerDown={(event) => onBlockPointerDown(event, block)}
-                  style={{
-                    width: `${block.width}px`,
-                    height: `${block.height}px`,
-                    left: `${block.x}px`,
-                    top: `${block.y}px`,
-                    transform: `rotate(${block.rotation}deg)`,
-                  }}
-                >
-                  <strong>{block.name}</strong>
-                  <span>{block.capacity} seats</span>
-                <span className="resize-corner" onPointerDown={(event) => onBlockResizePointerDown(event, block)} />
-                </button>
-              ))}
+                <div className="seat-grid-corner" />
+                {Array.from({ length: cols }, (_, index) => (
+                  <div className="seat-grid-col-header" key={`col-${index + 1}`}>
+                    {index + 1}
+                  </div>
+                ))}
+                {Array.from({ length: rows }, (_, rowIndex) => (
+                  <Fragment key={`row-group-${rowIndex}`}>
+                    <div className="seat-grid-row-header" key={`row-${rowIndex}`}>
+                      {toSeatRowLabel(rowIndex)}
+                    </div>
+                    {Array.from({ length: cols }, (_, colIndex) => {
+                      const seat = seatLookup.get(`${rowIndex}-${colIndex}`)
+                      if (!seat) return <div key={`empty-${rowIndex}-${colIndex}`} />
+                      const isSelected = selectedSeatIds.includes(seat.id)
+                      return (
+                        <button
+                          className={`seat-map-paint-seat ${seat.tone} ${isSelected ? 'selected' : ''}`}
+                          key={seat.id}
+                          type="button"
+                          style={{ width: `${seatSize}px`, minHeight: `${seatSize}px` }}
+                          onMouseDown={() => {
+                            setIsDragging(true)
+                            setDragStart({ row: seat.row, col: seat.col })
+                            setDragCurrent({ row: seat.row, col: seat.col })
+                          }}
+                          onMouseEnter={() => {
+                            if (!dragStart || !isDragging) return
+                            setDragCurrent({ row: seat.row, col: seat.col })
+                          }}
+                          onMouseUp={() => {
+                            setIsDragging(false)
+                            setDragCurrent({ row: seat.row, col: seat.col })
+                            applyToneToSelection(brushTone)
+                          }}
+                        />
+                      )
+                    })}
+                  </Fragment>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -515,9 +243,23 @@ export function SeatMapDesignerPage() {
   )
 }
 
-function generateClientId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+function toSeatRowLabel(index: number) {
+  let value = index + 1
+  let result = ''
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    result = String.fromCharCode(65 + remainder) + result
+    value = Math.floor((value - 1) / 26)
   }
-  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return result
+}
+
+function rebuildSeatGrid(rows: number, cols: number, current: SeatCell[]) {
+  const toneMap = new Map(current.map((seat) => [`${seat.row}-${seat.col}`, seat.tone] as const))
+  return Array.from({ length: rows * cols }, (_, index) => {
+    const row = Math.floor(index / cols)
+    const col = index % cols
+    const tone = toneMap.get(`${row}-${col}`) ?? (row < Math.ceil(rows * 0.25) ? 'vip' : row < Math.ceil(rows * 0.5) ? 'reserved' : row < Math.ceil(rows * 0.75) ? 'standard' : 'balcony')
+    return { id: `${toSeatRowLabel(row)}-${col + 1}`, row, col, tone }
+  })
 }
