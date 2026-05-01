@@ -287,6 +287,34 @@ func TestEventService_AllMethods(t *testing.T) {
 				}
 			},
 		},
+			{
+				name: "replace showtimes success and error",
+				run: func(t *testing.T, svc EventService, mock *eventRepoMock) {
+					mock.replaceShowtimesFn = func(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error) {
+						return []dto.ShowtimeResponse{{ID: uuid.NewString(), EventID: eventID.String(), Venue: "Venue A", Address: "Addr A"}}, nil
+					}
+					got, err := svc.ReplaceShowtimesByEvent(eventID, []dto.UpsertShowtimeRequest{{
+						Venue:     "Venue A",
+						Address:   "Addr A",
+						StartTime: time.Now().UTC(),
+						EndTime:   time.Now().UTC().Add(time.Hour),
+					}})
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					if len(got) != 1 {
+						t.Fatalf("expected 1 showtime, got %d", len(got))
+					}
+
+					mock.replaceShowtimesFn = func(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error) {
+						return nil, repoErr
+					}
+					_, err = svc.ReplaceShowtimesByEvent(eventID, nil)
+					if !errors.Is(err, repoErr) {
+						t.Fatalf("expected %v, got %v", repoErr, err)
+					}
+				},
+			},
 	}
 
 	for _, tt := range tests {

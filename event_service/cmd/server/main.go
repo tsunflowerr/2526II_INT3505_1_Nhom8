@@ -17,10 +17,43 @@ import (
 // @BasePath /api/v1
 // @schemes http https
 func main() {
-	cfg := config.NewConfig()
-	log.Println(cfg)
+	os.Exit(run(defaultRunDeps()))
+}
 
-	app, err := application.NewApp(cfg)
+type appRunner interface {
+	Start() error
+	Shutdown(ctx context.Context) error
+}
+
+type runDeps struct {
+	newConfig       func() config.Config
+	newApp          func(cfg config.Config) (appRunner, error)
+	notifySignal    func(c chan<- os.Signal, sig ...os.Signal)
+	stopSignal      func(c chan<- os.Signal)
+	sigCh           chan os.Signal
+	shutdownTimeout time.Duration
+	logPrintf       func(format string, v ...any)
+	logPrintln      func(v ...any)
+}
+
+func defaultRunDeps() runDeps {
+	return runDeps{
+		newConfig:       config.NewConfig,
+		newApp:          func(cfg config.Config) (appRunner, error) { return application.NewApp(cfg) },
+		notifySignal:    signal.Notify,
+		stopSignal:      signal.Stop,
+		sigCh:           make(chan os.Signal, 2),
+		shutdownTimeout: 15 * time.Second,
+		logPrintf:       log.Printf,
+		logPrintln:      log.Println,
+	}
+}
+
+func run(deps runDeps) int {
+	cfg := deps.newConfig()
+	deps.logPrintln(cfg)
+
+	app, err := deps.newApp(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -31,36 +64,29 @@ func main() {
 		}
 	}()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
+	deps.notifySignal(deps.sigCh, os.Interrupt, syscall.SIGTERM)
+	defer deps.stopSignal(deps.sigCh)
 
-	go func() {
-		<-sigCh
-		log.Println("force shutdown")
-		os.Exit(1)
-	}()
+	sig := <-deps.sigCh
+	deps.logPrintf("received signal: %s", sig.String())
 
-	sig := <-sigCh
-	log.Printf("received signal: %s", sig.String())
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), deps.shutdownTimeout)
 	defer cancel()
 
 	done := make(chan struct{})
 	go func() {
 		if err := app.Shutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown err: %v", err)
+			deps.logPrintf("shutdown err: %v", err)
 		}
-
 		close(done)
 	}()
 
 	select {
-	case <-sigCh:
-		log.Println("force shutdown")
-		os.Exit(1)
+	case <-deps.sigCh:
+		deps.logPrintln("force shutdown")
+		return 1
 	case <-done:
-		log.Println("graceful shutdown complete")
+		deps.logPrintln("graceful shutdown complete")
+		return 0
 	}
 }
