@@ -1,97 +1,157 @@
 import {
   AlertCircle,
   ArrowLeft,
-  CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ImagePlus,
-  LayoutGrid,
-  MapPin,
   Plus,
   Save,
-  Ticket,
+  Trash2,
 } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { createEvent } from '../services/ticketRushApi'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { createEvent, getEvent, getShowtimesByEvent, updateEvent } from '../services/ticketRushApi'
 import type { EventCategory, TicketStatus } from '../types'
 
-type SeatTemplate = 'concert' | 'theater' | 'stadium'
-
-type SeatSection = {
-  name: string
-  capacity: number
-  price: number
-  tone: string
-}
-
-const seatTemplates: Record<SeatTemplate, SeatSection[]> = {
-  concert: [
-    { name: 'VIP Floor', capacity: 180, price: 158, tone: 'vip wide' },
-    { name: 'Reserved A', capacity: 420, price: 98, tone: 'reserved' },
-    { name: 'Reserved B', capacity: 680, price: 74, tone: 'standard' },
-    { name: 'Balcony', capacity: 520, price: 46, tone: 'balcony' },
-  ],
-  theater: [
-    { name: 'Orchestra', capacity: 260, price: 118, tone: 'vip' },
-    { name: 'Mezzanine', capacity: 340, price: 82, tone: 'reserved' },
-    { name: 'Dress Circle', capacity: 240, price: 64, tone: 'standard' },
-    { name: 'Gallery', capacity: 180, price: 42, tone: 'balcony' },
-  ],
-  stadium: [
-    { name: 'Pitch Side', capacity: 900, price: 132, tone: 'vip wide' },
-    { name: 'Lower Bowl', capacity: 4200, price: 86, tone: 'reserved wide' },
-    { name: 'Upper Bowl East', capacity: 3600, price: 54, tone: 'standard' },
-    { name: 'Upper Bowl West', capacity: 3600, price: 54, tone: 'standard' },
-    { name: 'Supporters', capacity: 1800, price: 38, tone: 'balcony wide' },
-  ],
-}
+const availableSeatMaps = [
+  { id: 'concert-main', label: 'Concert Main Hall', venue: 'TicketRush Arena', address: 'District 1, Ho Chi Minh City' },
+  { id: 'theater-classic', label: 'Classic Theater', venue: 'Grand Theater', address: 'District 3, Ho Chi Minh City' },
+  { id: 'stadium-open', label: 'Open Stadium', venue: 'City Stadium', address: 'District 7, Ho Chi Minh City' },
+]
 
 export function AdminCreateEventPage() {
-  const [seatTemplate, setSeatTemplate] = useState<SeatTemplate>('concert')
+  const { eventId } = useParams<{ eventId: string }>()
+  const isEditMode = Boolean(eventId)
   const [eventName, setEventName] = useState('')
   const [category, setCategory] = useState<EventCategory>('Music')
   const [status, setStatus] = useState<TicketStatus>('Available')
-  const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
-  const [venue, setVenue] = useState('')
   const [city, setCity] = useState('Ho Chi Minh City')
-  const [address, setAddress] = useState('')
   const [description, setDescription] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
+  const [posterPreviewUrl, setPosterPreviewUrl] = useState('')
+  const [showtimes, setShowtimes] = useState<Array<{ date: string; time: string; seatMapId: string; queueEnabled: boolean; queueLimit: number }>>([
+    { date: '', time: '', seatMapId: availableSeatMaps[0].id, queueEnabled: false, queueLimit: 200 },
+  ])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingEvent, setIsLoadingEvent] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
-  const seatSections = useMemo(() => seatTemplates[seatTemplate], [seatTemplate])
+
+  function updateShowtime(index: number, patch: Partial<{ date: string; time: string; seatMapId: string; queueEnabled: boolean; queueLimit: number }>) {
+    setShowtimes((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
+  }
+
+  function onPosterSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setNotice({ tone: 'error', text: 'Please choose an image file for the poster.' })
+      event.target.value = ''
+      return
+    }
+    setPosterPreviewUrl(URL.createObjectURL(file))
+  }
+
+  useEffect(() => {
+    return () => {
+      if (posterPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(posterPreviewUrl)
+    }
+  }, [posterPreviewUrl])
+
+  useEffect(() => {
+    if (!eventId) return
+    const targetEventId = eventId
+    let isCancelled = false
+    async function loadEventForEdit() {
+      setIsLoadingEvent(true)
+      try {
+        const [event, eventShowtimes] = await Promise.all([getEvent(targetEventId), getShowtimesByEvent(targetEventId)])
+        if (!event || isCancelled) return
+        setEventName(event.name)
+        setCategory(event.category)
+        setStatus(event.status)
+        setCity(event.city)
+        setDescription(event.description)
+        if (event.imageUrl) setPosterPreviewUrl(event.imageUrl)
+        const mappedShowtimes = eventShowtimes
+          .map((item) => {
+            const start = new Date(item.startTime)
+            const date = Number.isNaN(start.getTime()) ? '' : start.toISOString().slice(0, 10)
+            const time = Number.isNaN(start.getTime()) ? '' : `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+            return {
+              date,
+              time,
+              seatMapId: availableSeatMaps.find((seatMap) => seatMap.label === item.seatMapName)?.id ?? availableSeatMaps[0].id,
+              queueEnabled: Boolean(item.queueEnabled),
+              queueLimit: item.queueLimit ?? 200,
+            }
+          })
+          .filter((item) => item.date && item.time)
+        setShowtimes(mappedShowtimes.length ? mappedShowtimes : [{ date: '', time: '', seatMapId: availableSeatMaps[0].id, queueEnabled: false, queueLimit: 200 }])
+      } catch (error) {
+        if (!isCancelled) {
+          setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not load event to edit.' })
+        }
+      } finally {
+        if (!isCancelled) setIsLoadingEvent(false)
+      }
+    }
+    loadEventForEdit()
+    return () => {
+      isCancelled = true
+    }
+  }, [eventId])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const primaryShowtime = showtimes[0]
+    if (!primaryShowtime || !primaryShowtime.date || !primaryShowtime.time) {
+      setNotice({ tone: 'error', text: 'Please complete at least one showtime with date and time.' })
+      return
+    }
+    if (showtimes.some((item) => item.queueEnabled && (item.queueLimit < 50 || item.queueLimit > 10000))) {
+      setNotice({ tone: 'error', text: 'Queue limit per showtime must be between 50 and 10000.' })
+      return
+    }
     setIsSubmitting(true)
     setNotice(null)
     try {
-      await createEvent({
+      const payload: Parameters<typeof createEvent>[0] = {
         kind: 'EVENT',
         name: eventName.trim(),
         category,
         status,
-        date,
-        time,
-        venue: venue.trim(),
+        date: primaryShowtime.date,
+        time: primaryShowtime.time,
+        venue: availableSeatMaps.find((item) => item.id === primaryShowtime.seatMapId)?.venue ?? city.trim(),
         city: city.trim(),
-        address: address.trim(),
+        address: availableSeatMaps.find((item) => item.id === primaryShowtime.seatMapId)?.address ?? city.trim(),
         description: description.trim(),
-        imageUrl: imageUrl.trim() || undefined,
+        imageUrl: undefined,
         isFlashSale: status === 'Flash Sale',
-        sections: seatSections.map((section) => ({
-          name: section.name,
-          rowCount: Math.max(1, Math.floor(section.capacity / 12)),
-          seatsPerRow: 12,
-          seatClass: section.name.toLowerCase().includes('vip') ? 'VIP' : section.name.toLowerCase().includes('balcony') ? 'STANDARD' : 'PREMIUM',
-          price: section.price * 1000,
-        })),
-      })
-      setNotice({ tone: 'success', text: 'Event created successfully via backend API.' })
+        showtimes: showtimes
+          .filter((showtime) => showtime.date && showtime.time)
+          .map((showtime) => ({
+            date: showtime.date,
+            time: showtime.time,
+            seatMapName: availableSeatMaps.find((item) => item.id === showtime.seatMapId)?.label ?? 'Auto map',
+            venue: availableSeatMaps.find((item) => item.id === showtime.seatMapId)?.venue ?? city.trim(),
+            address: availableSeatMaps.find((item) => item.id === showtime.seatMapId)?.address ?? city.trim(),
+            queueEnabled: showtime.queueEnabled,
+            queueLimit: showtime.queueEnabled ? showtime.queueLimit : undefined,
+          })),
+        sections: [{ name: 'Default', rowCount: 10, seatsPerRow: 12, seatClass: 'STANDARD', price: 120000 }],
+      }
+      if (isEditMode && eventId) {
+        await updateEvent(eventId, payload)
+        setNotice({ tone: 'success', text: 'Event updated successfully.' })
+      } else {
+        await createEvent(payload)
+        setNotice({ tone: 'success', text: 'Event created successfully via backend API.' })
+      }
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Failed to create event via API.' })
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : isEditMode ? 'Failed to update event via API.' : 'Failed to create event via API.' })
     } finally {
       setIsSubmitting(false)
     }
@@ -103,9 +163,9 @@ export function AdminCreateEventPage() {
         <div>
           <p className="eyebrow">
             <Plus size={18} strokeWidth={2.5} />
-            Create event
+            {isEditMode ? 'Edit event' : 'Create event'}
           </p>
-          <h1 id="create-event-title">Build the next ticket drop.</h1>
+          <h1 id="create-event-title">{isEditMode ? 'Refine event details and schedule.' : 'Build the next ticket drop.'}</h1>
         </div>
         <Link className="secondary-button compact-link" to="/admin">
           <ArrowLeft size={18} strokeWidth={2.5} />
@@ -114,6 +174,7 @@ export function AdminCreateEventPage() {
       </div>
 
       <form className="create-event-layout" onSubmit={onSubmit}>
+        {isLoadingEvent && <div className="auth-notice info"><p>Loading event details...</p></div>}
         <section className="admin-panel create-main-panel" aria-labelledby="event-basic-title">
           <div className="panel-heading">
             <div>
@@ -123,11 +184,17 @@ export function AdminCreateEventPage() {
           </div>
 
           <div className="poster-uploader">
-            <input id="poster-upload" type="file" accept="image/*" />
+            <input id="poster-upload" type="file" accept="image/*" onChange={onPosterSelected} />
             <label htmlFor="poster-upload">
-              <ImagePlus size={34} strokeWidth={2.5} />
-              <span>Choose poster image</span>
-              <small>PNG, JPG, or WebP. Recommended 4:5 poster ratio.</small>
+              {posterPreviewUrl ? (
+                <img src={posterPreviewUrl} alt="Poster preview" className="poster-preview-image" />
+              ) : (
+                <>
+                  <ImagePlus size={34} strokeWidth={2.5} />
+                  <span>Choose poster image</span>
+                  <small>PNG, JPG, or WebP. Recommended 4:5 poster ratio.</small>
+                </>
+              )}
             </label>
           </div>
 
@@ -139,67 +206,29 @@ export function AdminCreateEventPage() {
 
             <label className="field">
               <span>Category</span>
-              <div className="select-shell">
-                <select value={category} onChange={(event) => setCategory(event.target.value as EventCategory)} required>
-                  <option value="Music">Music</option>
-                  <option value="Sports">Sports</option>
-                  <option value="Theater">Theater</option>
-                  <option value="Festival">Festival</option>
-                  <option value="Workshop">Workshop</option>
-                  <option value="Comedy">Comedy</option>
-                </select>
-              </div>
+              <FilterSelect
+                value={category}
+                valueLabel={category}
+                ariaLabel="Select category"
+                options={['Music', 'Sports', 'Theater', 'Festival', 'Workshop', 'Comedy'].map((item) => ({ value: item, label: item }))}
+                onChange={(value) => setCategory(value as EventCategory)}
+              />
             </label>
 
             <label className="field">
               <span>Status</span>
-              <div className="select-shell">
-                <select value={status} onChange={(event) => setStatus(event.target.value as TicketStatus)} required>
-                  <option value="Available">Available</option>
-                  <option value="Flash Sale">Flash Sale</option>
-                  <option value="Almost Sold Out">Almost Sold Out</option>
-                  <option value="Sold Out">Sold Out</option>
-                </select>
-              </div>
-            </label>
-
-            <label className="field">
-              <span>Date</span>
-              <div className="input-shell icon-field">
-                <CalendarDays size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
-              </div>
-            </label>
-
-            <label className="field">
-              <span>Start time</span>
-              <div className="input-shell icon-field">
-                <Clock size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="time" value={time} onChange={(event) => setTime(event.target.value)} required />
-              </div>
-            </label>
-
-            <label className="field span-2">
-              <span>Venue</span>
-              <div className="input-shell icon-field">
-                <MapPin size={20} strokeWidth={2.5} aria-hidden="true" />
-                <input type="text" placeholder="Pulse Hall, Austin TX" value={venue} onChange={(event) => setVenue(event.target.value)} required />
-              </div>
+              <FilterSelect
+                value={status}
+                valueLabel={status}
+                ariaLabel="Select status"
+                options={['Available', 'Flash Sale', 'Almost Sold Out', 'Sold Out'].map((item) => ({ value: item, label: item }))}
+                onChange={(value) => setStatus(value as TicketStatus)}
+              />
             </label>
 
             <label className="field">
               <span>City</span>
               <input type="text" value={city} onChange={(event) => setCity(event.target.value)} required />
-            </label>
-
-            <label className="field">
-              <span>Address</span>
-              <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} required />
-            </label>
-
-            <label className="field span-2">
-              <span>Poster URL</span>
-              <input type="url" placeholder="https://..." value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} />
             </label>
 
             <label className="field span-2">
@@ -211,111 +240,82 @@ export function AdminCreateEventPage() {
                 onChange={(event) => setDescription(event.target.value)}
               />
             </label>
-          </div>
-        </section>
 
-        <aside className="admin-panel create-side-panel" aria-labelledby="ticket-settings-title">
-          <h2 id="ticket-settings-title">Ticket settings</h2>
-
-          <label className="field">
-            <span>Total ticket cap</span>
-            <input type="number" defaultValue={1800} min={1} />
-          </label>
-
-          <label className="field">
-            <span>Sale opens</span>
-            <input type="datetime-local" />
-          </label>
-
-          <label className="field">
-            <span>Per order limit</span>
-            <input type="number" defaultValue={6} min={1} />
-          </label>
-
-          <div className="publish-card">
-            <Ticket size={24} strokeWidth={2.5} />
-            <div>
-              <strong>Ready for backend</strong>
-              <span>Submit can post event, poster, seats, and pricing payload.</span>
-            </div>
-          </div>
-        </aside>
-
-        <section className="admin-panel seat-map-panel" aria-labelledby="seat-map-title">
-          <div className="panel-heading">
-            <div>
-              <h2 id="seat-map-title">Seat map & pricing</h2>
-              <p>Choose a default layout or sketch a custom map for the venue.</p>
-            </div>
-            <LayoutGrid size={28} strokeWidth={2.5} />
-          </div>
-
-          <div className="seat-template-picker" role="radiogroup" aria-label="Seat map templates">
-            <button
-              className={seatTemplate === 'concert' ? 'active' : ''}
-              type="button"
-              role="radio"
-              aria-checked={seatTemplate === 'concert'}
-              onClick={() => setSeatTemplate('concert')}
-            >
-              Concert hall
-            </button>
-            <button
-              className={seatTemplate === 'theater' ? 'active' : ''}
-              type="button"
-              role="radio"
-              aria-checked={seatTemplate === 'theater'}
-              onClick={() => setSeatTemplate('theater')}
-            >
-              Theater
-            </button>
-            <button
-              className={seatTemplate === 'stadium' ? 'active' : ''}
-              type="button"
-              role="radio"
-              aria-checked={seatTemplate === 'stadium'}
-              onClick={() => setSeatTemplate('stadium')}
-            >
-              Stadium
-            </button>
-            <Link className="secondary-button compact-link" to="/admin/events/new/seat-map">
-              Create new map
-            </Link>
-          </div>
-
-          <div className="seat-map-builder">
-            <div className={`seat-map-preview ${seatTemplate}`} aria-label="Seat map preview">
-              <div className="stage">Stage</div>
-              {seatSections.map((section) => (
-                <button className={`seat-zone ${section.tone}`} type="button" key={section.name}>
-                  <strong>{section.name}</strong>
-                  <span>{section.capacity} seats</span>
+            <section className="field span-2">
+              <span>Showtimes</span>
+              <div className="showtime-admin-list redesigned-showtime-list">
+                {showtimes.map((showtime, index) => (
+                  <article className="showtime-admin-row redesigned-showtime-row" key={`showtime-${index}`}>
+                    <div className="showtime-row-title">
+                      <strong>Showtime {index + 1}</strong>
+                    </div>
+                    <label className="field">
+                      <span>Date</span>
+                      <DatePickerCalendar
+                        value={showtime.date}
+                        valueLabel={showtime.date || 'Select date'}
+                        ariaLabel={`Pick showtime ${index + 1} date`}
+                        onChange={(value) => updateShowtime(index, { date: value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Time</span>
+                      <div className="input-shell icon-field">
+                        <Clock size={20} strokeWidth={2.5} aria-hidden="true" />
+                        <input type="time" value={showtime.time} onChange={(event) => updateShowtime(index, { time: event.target.value })} required={index === 0} />
+                      </div>
+                    </label>
+                    <label className="field">
+                      <span>Seat map</span>
+                      <FilterSelect
+                        value={showtime.seatMapId}
+                        valueLabel={availableSeatMaps.find((item) => item.id === showtime.seatMapId)?.label ?? 'Select map'}
+                        ariaLabel={`Select seat map for showtime ${index + 1}`}
+                        options={availableSeatMaps.map((item) => ({ value: item.id, label: item.label }))}
+                        onChange={(value) => updateShowtime(index, { seatMapId: value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Queue</span>
+                      <div className="queue-inline-controls">
+                        <button
+                          className={showtime.queueEnabled ? 'secondary-button queue-toggle-button active' : 'secondary-button queue-toggle-button'}
+                          type="button"
+                          onClick={() => updateShowtime(index, { queueEnabled: !showtime.queueEnabled })}
+                        >
+                          {showtime.queueEnabled ? 'Waiting room on' : 'Waiting room off'}
+                        </button>
+                        <input
+                          type="number"
+                          min={50}
+                          max={10000}
+                          value={showtime.queueLimit}
+                          disabled={!showtime.queueEnabled}
+                          onChange={(event) => updateShowtime(index, { queueLimit: Number(event.target.value) || 50 })}
+                        />
+                      </div>
+                    </label>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setShowtimes((current) => (current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)))}
+                      disabled={showtimes.length === 1}
+                    >
+                      <Trash2 size={18} strokeWidth={2.5} />
+                      Remove
+                    </button>
+                  </article>
+                ))}
+                <button
+                  className="secondary-button add-section-button"
+                  type="button"
+                  onClick={() => setShowtimes((current) => [...current, { date: '', time: '', seatMapId: availableSeatMaps[0].id, queueEnabled: false, queueLimit: 200 }])}
+                >
+                  <Plus size={18} strokeWidth={2.5} />
+                  Add showtime
                 </button>
-              ))}
-            </div>
-
-            <div className="seat-section-list">
-              {seatSections.map((section) => (
-                <article className="seat-section-row" key={section.name}>
-                  <div>
-                    <strong>{section.name}</strong>
-                    <span>{section.capacity} tickets</span>
-                  </div>
-                  <label>
-                    Price
-                    <input type="number" defaultValue={section.price} min={0} />
-                  </label>
-                  <label>
-                    Quantity
-                    <input type="number" defaultValue={section.capacity} min={0} />
-                  </label>
-                </article>
-              ))}
-              <button className="secondary-button add-section-button" type="button">
-                <Plus size={18} strokeWidth={2.5} />
-                Add section
-              </button>
-            </div>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -332,7 +332,7 @@ export function AdminCreateEventPage() {
             Save draft
           </button>
           <button className="primary-button compact-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Publishing...' : 'Publish event'}
+            {isSubmitting ? (isEditMode ? 'Saving...' : 'Publishing...') : isEditMode ? 'Save changes' : 'Publish event'}
             <span>
               <Save size={18} strokeWidth={2.5} />
             </span>
@@ -341,4 +341,188 @@ export function AdminCreateEventPage() {
       </form>
     </section>
   )
+}
+
+function FilterSelect({
+  value,
+  valueLabel,
+  options,
+  placeholder = 'Select',
+  ariaLabel,
+  onChange,
+}: {
+  value: string
+  valueLabel: string
+  options: Array<{ value: string; label: string }>
+  placeholder?: string
+  ariaLabel: string
+  onChange: (value: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) setIsOpen(false)
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen])
+
+  return (
+    <div className={isOpen ? 'filter-select open' : 'filter-select'} ref={wrapperRef}>
+      <button className="filter-select-trigger" type="button" aria-haspopup="listbox" aria-expanded={isOpen} aria-label={ariaLabel} onClick={() => setIsOpen((open) => !open)}>
+        <span>{valueLabel || placeholder}</span>
+        <ChevronDown size={18} strokeWidth={2.5} />
+      </button>
+      {isOpen && (
+        <div className="filter-select-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => (
+            <button
+              className={option.value === value ? 'filter-option active' : 'filter-option'}
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value)
+                setIsOpen(false)
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DatePickerCalendar({
+  value,
+  valueLabel,
+  ariaLabel,
+  onChange,
+}: {
+  value: string
+  valueLabel: string
+  ariaLabel: string
+  onChange: (value: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) setIsOpen(false)
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isOpen])
+
+  const days = useMemo(() => {
+    const firstVisible = startOfWeek(visibleMonth)
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(firstVisible)
+      day.setDate(firstVisible.getDate() + index)
+      return day
+    })
+  }, [visibleMonth])
+
+  return (
+    <div className={isOpen ? 'filter-select calendar-filter open' : 'filter-select calendar-filter'} ref={wrapperRef}>
+      <button className="filter-select-trigger" type="button" aria-haspopup="dialog" aria-expanded={isOpen} aria-label={ariaLabel} onClick={() => setIsOpen((open) => !open)}>
+        <span>{valueLabel}</span>
+        <ChevronDown size={18} strokeWidth={2.5} />
+      </button>
+      {isOpen && (
+        <div className="calendar-menu" role="dialog" aria-label={ariaLabel}>
+          <div className="calendar-header">
+            <button className="tiny-calendar-nav" type="button" onClick={() => setVisibleMonth((month) => addMonths(month, -1))} aria-label="Previous month">
+              <ChevronLeft size={16} strokeWidth={2.5} />
+            </button>
+            <strong>{formatMonthYear(visibleMonth)}</strong>
+            <button className="tiny-calendar-nav" type="button" onClick={() => setVisibleMonth((month) => addMonths(month, 1))} aria-label="Next month">
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+          <div className="calendar-weekdays">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+          <div className="calendar-grid">
+            {days.map((day) => {
+              const isoValue = toISODate(day)
+              const inMonth = day.getMonth() === visibleMonth.getMonth()
+              const isActive = value === isoValue
+              const isToday = isoValue === toISODate(new Date())
+              return (
+                <button
+                  className={['calendar-day', inMonth ? '' : 'outside', 'available', isActive ? 'active' : '', isToday ? 'today' : ''].filter(Boolean).join(' ')}
+                  key={isoValue}
+                  type="button"
+                  onClick={() => {
+                    onChange(isoValue)
+                    setIsOpen(false)
+                  }}
+                >
+                  {day.getDate()}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            className="calendar-clear"
+            type="button"
+            onClick={() => {
+              onChange('')
+              setIsOpen(false)
+            }}
+          >
+            Clear date
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function addMonths(date: Date, offset: number) {
+  return new Date(date.getFullYear(), date.getMonth() + offset, 1)
+}
+
+function startOfWeek(date: Date) {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
+  firstDay.setDate(firstDay.getDate() - firstDay.getDay())
+  return firstDay
+}
+
+function toISODate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
 }

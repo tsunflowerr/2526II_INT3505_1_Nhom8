@@ -21,6 +21,7 @@ type eventServiceMock struct {
 	getFn    func(eventID uuid.UUID) (*dto.EventResponse, error)
 	getShowtimeFn func(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
 	listShowtimesFn func(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
+	replaceShowtimesFn func(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error)
 	listFn   func(query dto.ListEventsQuery) ([]dto.EventResponse, int64, int, error)
 	updateFn func(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error)
 	deleteFn func(eventID uuid.UUID) error
@@ -46,6 +47,12 @@ func (m *eventServiceMock) ListShowtimesByEvent(eventID uuid.UUID) ([]dto.Showti
 		return []dto.ShowtimeResponse{}, nil
 	}
 	return m.listShowtimesFn(eventID)
+}
+func (m *eventServiceMock) ReplaceShowtimesByEvent(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error) {
+	if m.replaceShowtimesFn == nil {
+		return []dto.ShowtimeResponse{}, nil
+	}
+	return m.replaceShowtimesFn(eventID, showtimes)
 }
 func (m *eventServiceMock) UpdateEvent(eventID uuid.UUID, req dto.UpdateEventRequest) (*dto.EventResponse, error) {
 	return m.updateFn(eventID, req)
@@ -96,6 +103,7 @@ func TestEventHandlerRoutes(t *testing.T) {
 		{"get", http.MethodGet, "/api/v1/events/" + id.String(), nil, http.StatusOK},
 		{"get showtime", http.MethodGet, "/api/v1/showtimes/" + showtimeRes.ID, nil, http.StatusOK},
 		{"list showtimes by event", http.MethodGet, "/api/v1/events/" + id.String() + "/showtimes", nil, http.StatusOK},
+		{"replace showtimes", http.MethodPut, "/api/v1/events/" + id.String() + "/showtimes", []dto.UpsertShowtimeRequest{{Venue: "Venue A", Address: "Address A", StartTime: now, EndTime: now.Add(time.Hour), SeatMapName: "Map A"}}, http.StatusOK},
 		{"update", http.MethodPut, "/api/v1/events/" + id.String(), dto.UpdateEventRequest{Name: "U", DurationMinutes: 90, EventType: "EVENT"}, http.StatusOK},
 		{"delete", http.MethodDelete, "/api/v1/events/" + id.String(), nil, http.StatusOK},
 	}
@@ -193,6 +201,34 @@ func TestEventHandlerErrorPaths(t *testing.T) {
 				},
 			},
 			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "replace showtimes invalid event id",
+			method:     http.MethodPut,
+			path:       "/api/v1/events/bad-id/showtimes",
+			body:       []dto.UpsertShowtimeRequest{{Venue: "V", Address: "A", StartTime: time.Now().UTC(), EndTime: time.Now().UTC().Add(time.Hour)}},
+			mock:       &eventServiceMock{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "replace showtimes invalid body",
+			method:     http.MethodPut,
+			path:       "/api/v1/events/" + uuid.New().String() + "/showtimes",
+			body:       map[string]any{"x": 1},
+			mock:       &eventServiceMock{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "replace showtimes service app error",
+			method: http.MethodPut,
+			path:   "/api/v1/events/" + uuid.New().String() + "/showtimes",
+			body:   []dto.UpsertShowtimeRequest{{Venue: "V", Address: "A", StartTime: time.Now().UTC(), EndTime: time.Now().UTC().Add(time.Hour)}},
+			mock: &eventServiceMock{
+				replaceShowtimesFn: func(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error) {
+					return nil, apperror.NewNotFound("event not found")
+				},
+			},
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:   "list invalid query",

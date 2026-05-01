@@ -48,3 +48,11 @@ type ListEventsQuery struct {
 	Type     string `form:"type" binding:"omitempty,oneof=EVENT MOVIE"`
 	Search   string `form:"search"`
 }
+
+type UpsertShowtimeRequest struct {
+	Venue       string    `json:"venue" binding:"required"`
+	Address     string    `json:"address" binding:"required"`
+	StartTime   time.Time `json:"start_time" binding:"required"`
+	EndTime     time.Time `json:"end_time" binding:"required,gtfield=StartTime"`
+	SeatMapName string    `json:"seat_map_name"`
+}

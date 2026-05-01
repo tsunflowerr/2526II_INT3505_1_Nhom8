@@ -31,6 +31,7 @@ func (h *EventHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		events.GET("", h.ListEvents)
 		events.GET("/:id", h.GetEvent)
 		events.GET("/:id/showtimes", h.ListShowtimesByEvent)
+		events.PUT("/:id/showtimes", h.ReplaceEventShowtimes)
 		events.PUT("/:id", h.UpdateEvent)
 		events.DELETE("/:id", h.DeleteEvent)
 	}
@@ -249,6 +250,34 @@ func (h *EventHandler) ListShowtimesByEvent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.SuccessResponse{Data: showtimes})
+}
+
+func (h *EventHandler) ReplaceEventShowtimes(c *gin.Context) {
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "invalid event ID",
+		})
+		return
+	}
+	var req []dto.UpsertShowtimeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "invalid request: " + err.Error(),
+		})
+		return
+	}
+	showtimes, err := h.service.ReplaceShowtimesByEvent(eventID, req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.SuccessResponse{
+		Message: "event showtimes replaced successfully",
+		Data:    showtimes,
+	})
 }
 
 func (h *EventHandler) handleError(c *gin.Context, err error) {

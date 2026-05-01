@@ -4,6 +4,8 @@ import (
 	"event_service/internal/apperror"
 	"event_service/internal/dto"
 	"event_service/internal/models"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -16,6 +18,7 @@ type EventRepository interface {
 	List(query dto.ListEventsQuery) ([]models.Event, int64, error)
 	GetShowtimeByID(showtimeID uuid.UUID) (*dto.ShowtimeResponse, error)
 	ListShowtimesByEventID(eventID uuid.UUID) ([]dto.ShowtimeResponse, error)
+	ReplaceShowtimesByEventID(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error)
 	Update(eventID uuid.UUID, req dto.UpdateEventRequest) (*models.Event, error)
 	Delete(eventID uuid.UUID) error
 }
@@ -199,4 +202,64 @@ func (r *eventRepository) Delete(eventID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (r *eventRepository) ReplaceShowtimesByEventID(eventID uuid.UUID, showtimes []dto.UpsertShowtimeRequest) ([]dto.ShowtimeResponse, error) {
+	if _, err := r.GetByID(eventID); err != nil {
+		return nil, err
+	}
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		return nil, apperror.NewInternal("failed to start transaction", tx.Error)
+	}
+	defer func() {
+		if recover() != nil {
+			tx.Rollback()
+		}
+	}()
+
+	now := time.Now().UTC()
+	if err := tx.Exec(`UPDATE show_times SET deleted_at = ?, updated_at = ? WHERE event_id = ? AND deleted_at IS NULL`, now, now, eventID).Error; err != nil {
+		tx.Rollback()
+		return nil, apperror.NewInternal("failed to clear old showtimes", err)
+	}
+
+	for index, item := range showtimes {
+		venueID := uuid.New()
+		seatMapID := uuid.New()
+		showtimeID := uuid.New()
+		seatMapName := item.SeatMapName
+		if seatMapName == "" {
+			seatMapName = fmt.Sprintf("Auto map %d", index+1)
+		}
+
+		if err := tx.Exec(
+			`INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			venueID, item.Venue, item.Address, now, now,
+		).Error; err != nil {
+			tx.Rollback()
+			return nil, apperror.NewInternal("failed to create venue for showtime", err)
+		}
+
+		if err := tx.Exec(
+			`INSERT INTO seat_maps (id, name, venue_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			seatMapID, seatMapName, venueID, now, now,
+		).Error; err != nil {
+			tx.Rollback()
+			return nil, apperror.NewInternal("failed to create seat map for showtime", err)
+		}
+
+		if err := tx.Exec(
+			`INSERT INTO show_times (id, event_id, seat_map_id, start_time, end_time, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			showtimeID, eventID, seatMapID, item.StartTime, item.EndTime, now, now,
+		).Error; err != nil {
+			tx.Rollback()
+			return nil, apperror.NewInternal("failed to create showtime", err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperror.NewInternal("failed to commit showtime updates", err)
+	}
+	return r.ListShowtimesByEventID(eventID)
 }

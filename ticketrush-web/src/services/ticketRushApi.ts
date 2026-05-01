@@ -89,6 +89,17 @@ export type CreateEventPayload = {
   description: string
   imageUrl?: string
   isFlashSale: boolean
+  queueEnabled?: boolean
+  queueLimit?: number
+  showtimes?: Array<{
+    date: string
+    time: string
+    seatMapName: string
+    venue: string
+    address: string
+    queueEnabled?: boolean
+    queueLimit?: number
+  }>
   sections: SeatSectionInput[]
   cinemaName?: string
   screenName?: string
@@ -116,6 +127,14 @@ type CreateEventApiRequest = {
   release_date?: string
   language?: string
 }
+
+type ReplaceShowtimesApiRequest = Array<{
+  venue: string
+  address: string
+  start_time: string
+  end_time: string
+  seat_map_name: string
+}>
 
 type SeatStatusResponse = {
   showtimeId: string
@@ -189,6 +208,36 @@ async function postEventApi<T>(path: string, body: unknown): Promise<T> {
   }
   const payload = (await response.json()) as { data: T }
   return payload.data
+}
+
+async function putEventApi<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${getEventApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
+    method: 'PUT',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error('Unable to update event from admin panel.')
+  }
+  const payload = (await response.json()) as { data: T }
+  return payload.data
+}
+
+async function putEventApiNoResponse(path: string, body: unknown): Promise<void> {
+  const response = await fetch(`${getEventApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`, {
+    method: 'PUT',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error('Unable to update showtimes from admin panel.')
+  }
 }
 
 function normalizeMovieMetadata(event: EventApiResponse): MovieMetadata | undefined {
@@ -276,6 +325,8 @@ async function seedCatalogFromBackend(): Promise<void> {
         startTime: apiShowtime.start_time,
         endTime: apiShowtime.end_time,
         seatMapName: apiShowtime.seat_map_name,
+        queueEnabled: Boolean(item.is_flash_sale),
+        queueLimit: Boolean(item.is_flash_sale) ? 1000 : undefined,
         cinemaName: kind === 'MOVIE' ? apiShowtime.venue : undefined,
         screenName: kind === 'MOVIE' ? 'Screen 1' : undefined,
         format: kind === 'MOVIE' ? '2D' : undefined,
@@ -674,6 +725,20 @@ export async function createEvent(payload: CreateEventPayload): Promise<TicketRu
     language: payload.kind === 'MOVIE' ? 'Vietnamese' : undefined,
   }
   const created = await postEventApi<EventApiResponse>('/events', apiPayload)
+  if (payload.showtimes?.length) {
+    const showtimePayload: ReplaceShowtimesApiRequest = payload.showtimes.map((showtime, index) => {
+      const start = new Date(`${showtime.date}T${showtime.time}:00`)
+      const end = new Date(start.getTime() + 120 * 60 * 1000)
+      return {
+        venue: showtime.venue,
+        address: showtime.address,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        seat_map_name: showtime.seatMapName || `Auto map ${index + 1}`,
+      }
+    })
+    await putEventApiNoResponse(`/events/${encodeURIComponent(created.id)}/showtimes`, showtimePayload)
+  }
   catalogBootstrapPromise = null
   resetDemoState()
   await ensureCatalogBootstrap()
@@ -681,6 +746,55 @@ export async function createEvent(payload: CreateEventPayload): Promise<TicketRu
   const existing = state.events.find((event) => event.id === created.id)
   if (!existing) {
     throw new Error('Event was created but not found in refreshed catalog.')
+  }
+  return existing
+}
+
+export async function updateEvent(eventId: string, payload: CreateEventPayload): Promise<TicketRushEvent> {
+  const apiPayload: CreateEventApiRequest = {
+    name: payload.name,
+    description: payload.description,
+    duration_minutes:
+      payload.kind === 'MOVIE'
+        ? payload.movie?.durationMinutes ?? 120
+        : Math.max(60, Math.min(360, Math.round((payload.sections.length || 2) * 60))),
+    event_type: payload.kind,
+    category: payload.kind === 'MOVIE' ? 'Cinema' : payload.category,
+    venue: payload.venue,
+    city: payload.city,
+    address: payload.address,
+    organizer: payload.kind === 'MOVIE' ? 'TicketRush Cinema' : 'TicketRush Admin',
+    image_url: payload.imageUrl,
+    sale_opens_at: new Date().toISOString(),
+    is_flash_sale: payload.isFlashSale,
+    status: payload.status,
+    director: payload.kind === 'MOVIE' ? payload.movie?.director : undefined,
+    age_rating: payload.kind === 'MOVIE' ? payload.movie?.ageRating : undefined,
+    release_date: payload.kind === 'MOVIE' ? `${payload.date}T00:00:00Z` : undefined,
+    language: payload.kind === 'MOVIE' ? 'Vietnamese' : undefined,
+  }
+  await putEventApi<EventApiResponse>(`/events/${encodeURIComponent(eventId)}`, apiPayload)
+  if (payload.showtimes?.length) {
+    const showtimePayload: ReplaceShowtimesApiRequest = payload.showtimes.map((showtime, index) => {
+      const start = new Date(`${showtime.date}T${showtime.time}:00`)
+      const end = new Date(start.getTime() + 120 * 60 * 1000)
+      return {
+        venue: showtime.venue,
+        address: showtime.address,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        seat_map_name: showtime.seatMapName || `Auto map ${index + 1}`,
+      }
+    })
+    await putEventApiNoResponse(`/events/${encodeURIComponent(eventId)}/showtimes`, showtimePayload)
+  }
+  catalogBootstrapPromise = null
+  resetDemoState()
+  await ensureCatalogBootstrap()
+  const state = getFreshState()
+  const existing = state.events.find((event) => event.id === eventId)
+  if (!existing) {
+    throw new Error('Event was updated but not found in refreshed catalog.')
   }
   return existing
 }

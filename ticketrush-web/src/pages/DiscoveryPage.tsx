@@ -37,6 +37,7 @@ export function DiscoveryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('')
   const [date, setDate] = useState('')
   const [sort, setSort] = useState<SortOption>('date-asc')
   const [page, setPage] = useState(1)
@@ -106,6 +107,7 @@ export function DiscoveryPage() {
 
         return (
           (!normalizedQuery || searchableText.includes(normalizedQuery)) &&
+          (!category || event.category === category) &&
           (!date || event.date === date)
         )
       })
@@ -115,7 +117,11 @@ export function DiscoveryPage() {
         if (sort === 'name-asc') return first.name.localeCompare(second.name)
         return first.date.localeCompare(second.date)
       })
-  }, [date, events, query, sort])
+  }, [category, date, events, query, sort])
+  const availableCategories = useMemo(
+    () => [...new Set(events.map((event) => event.category))].sort((first, second) => first.localeCompare(second)),
+    [events],
+  )
   const availableDates = useMemo(
     () => [...new Set(events.map((event) => event.date))].sort((first, second) => first.localeCompare(second)),
     [events],
@@ -123,11 +129,12 @@ export function DiscoveryPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize))
   const visibleEvents = filteredEvents.slice((page - 1) * pageSize, page * pageSize)
-  const hasFilters = Boolean(query || date || sort !== 'date-asc')
+  const hasFilters = Boolean(query || category || date || sort !== 'date-asc')
   const featuredEvent = events[featuredIndex]
 
   function resetFilters() {
     setQuery('')
+    setCategory('')
     setDate('')
     setSort('date-asc')
     setPage(1)
@@ -186,6 +193,21 @@ export function DiscoveryPage() {
                 <Mic size={19} strokeWidth={2.5} />
               </Link>
             </div>
+          </label>
+
+          <label className="field">
+            <span>Category</span>
+            <FilterSelect
+              value={category}
+              valueLabel={category || 'All categories'}
+              placeholder="All categories"
+              ariaLabel="Filter by category"
+              options={availableCategories.map((item) => ({ value: item, label: item }))}
+              onChange={(value) => {
+                setCategory(value)
+                setPage(1)
+              }}
+            />
           </label>
 
           <label className="field">
