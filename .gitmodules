@@ -1,6 +1,3 @@
-[submodule "TicketRushPlatform"]
-	path = TicketRushPlatform
-	url = https://github.com/TicketRushPlatform/TicketRushPlatform.git
 [submodule "TicketRushPlatform_Web"]
 	path = TicketRushPlatform_Web
 	url = https://github.com/TicketRushPlatform/TicketRushPlatform_Web
