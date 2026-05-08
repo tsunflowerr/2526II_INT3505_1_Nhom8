@@ -1,0 +1,18 @@
+[submodule "TicketRushPlatform"]
+	path = TicketRushPlatform
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform.git
+[submodule "TicketRushPlatform_Web"]
+	path = TicketRushPlatform_Web
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform_Web
+[submodule "TicketRushPlatform_Booking_Service"]
+	path = TicketRushPlatform_Booking_Service
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform_Booking_Service
+[submodule "TicketRushPlatform_Event_Service"]
+	path = TicketRushPlatform_Event_Service
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform_Event_Service
+[submodule "TicketRushPlatform_User_Service"]
+	path = TicketRushPlatform_User_Service
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform_User_Service
+[submodule "TicketRushPlatform_Migration_Service"]
+	path = TicketRushPlatform_Migration_Service
+	url = https://github.com/TicketRushPlatform/TicketRushPlatform_Migration_Service
