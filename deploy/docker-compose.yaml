@@ -183,6 +183,7 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
         VITE_OAUTH_REDIRECT_BASE_URL: ${VITE_OAUTH_REDIRECT_BASE_URL:-}
+        VITE_TMDB_API_TOKEN: ${VITE_TMDB_API_TOKEN:-}
     image: ticketrush-web:local
     restart: always
 
