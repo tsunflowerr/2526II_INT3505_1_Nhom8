@@ -87,7 +87,7 @@ export function SeatSelectionPage() {
   async function onHoldSeats() {
     if (!showtimeId || selectedSeatIds.length === 0) return
     if (!auth.isAuthenticated) {
-      navigate(`/login?next=${encodeURIComponent(`/showtimes/${showtimeId}/seats`)}`)
+      navigate(`/login?next=${encodeURIComponent(`/showtimes/${showtimeId}/seats`)}&reason=booking`)
       return
     }
     setIsHolding(true)

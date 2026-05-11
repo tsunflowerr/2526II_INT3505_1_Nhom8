@@ -124,6 +124,20 @@ export type UpdateMePayload = {
   bio?: string | null
 }
 
+export type AdminCreateUserPayload = {
+  email: string
+  password: string
+  full_name: string
+  role?: 'USER' | 'ADMIN'
+  status?: 'ACTIVE' | 'BLOCKED'
+}
+
+export type AdminUpdateUserPayload = {
+  full_name?: string
+  role?: 'USER' | 'ADMIN'
+  status?: 'ACTIVE' | 'BLOCKED'
+}
+
 export type OAuthPayload = {
   id_token?: string
   access_token?: string
@@ -174,6 +188,22 @@ export async function updateMe(accessToken: string, payload: UpdateMePayload): P
 
 export async function getUser(accessToken: string, userId: string): Promise<User> {
   return requestJson<User>(`/users/${encodeURIComponent(userId)}`, { method: 'GET', accessToken })
+}
+
+export async function listUsers(accessToken: string): Promise<User[]> {
+  return requestJson<User[]>('/users', { method: 'GET', accessToken })
+}
+
+export async function createUserByAdmin(accessToken: string, payload: AdminCreateUserPayload): Promise<User> {
+  return requestJson<User>('/users', { method: 'POST', accessToken, body: payload })
+}
+
+export async function updateUserByAdmin(accessToken: string, userId: string, payload: AdminUpdateUserPayload): Promise<User> {
+  return requestJson<User>(`/users/${encodeURIComponent(userId)}`, { method: 'PATCH', accessToken, body: payload })
+}
+
+export async function deleteUserByAdmin(accessToken: string, userId: string): Promise<void> {
+  return requestJson<void>(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE', accessToken })
 }
 
 export async function uploadMyMedia(accessToken: string, payload: UploadMediaPayload): Promise<UploadMediaResponse> {

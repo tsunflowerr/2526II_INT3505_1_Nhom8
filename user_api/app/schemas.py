@@ -41,6 +41,18 @@ class UpdateMeSchema(Schema):
     phone_number = fields.String(allow_none=True, validate=validate.Length(max=32))
     bio = fields.String(allow_none=True, validate=validate.Length(max=500))
 
+class AdminCreateUserSchema(Schema):
+    email = fields.Email(required=True)
+    password = fields.String(required=True, validate=validate.Length(min=8, max=128))
+    full_name = fields.String(required=True, validate=validate.Length(min=1, max=120))
+    role = fields.String(load_default="USER", validate=validate.OneOf(["USER", "ADMIN"]))
+    status = fields.String(load_default="ACTIVE", validate=validate.OneOf(["ACTIVE", "BLOCKED"]))
+
+class AdminUpdateUserSchema(Schema):
+    full_name = fields.String(validate=validate.Length(min=1, max=120))
+    role = fields.String(validate=validate.OneOf(["USER", "ADMIN"]))
+    status = fields.String(validate=validate.OneOf(["ACTIVE", "BLOCKED"]))
+
 
 class TokenPairSchema(Schema):
     access_token = fields.String(required=True)
