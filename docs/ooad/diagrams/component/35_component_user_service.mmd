@@ -1,0 +1,33 @@
+flowchart LR
+  web["React Web"]
+  auth["Auth Controller"]
+  users["Users Controller"]
+  roles["Roles Controller"]
+  noti["Notifications Controller"]
+  token["TokenService"]
+  oauth["OAuthVerifier"]
+  storage["StorageService"]
+  email["EmailDispatcher/Worker"]
+  db[("PostgreSQL")]
+  redis[("Redis email queue/rate limit")]
+  minio[("MinIO/S3")]
+  smtp["SMTP"]
+  provider["Google/Facebook"]
+
+  web --> auth
+  web --> users
+  web --> roles
+  web --> noti
+  auth --> token
+  auth --> oauth
+  users --> storage
+  noti --> email
+  token --> db
+  auth --> db
+  users --> db
+  roles --> db
+  noti --> db
+  oauth --> provider
+  storage --> minio
+  email --> redis
+  email --> smtp

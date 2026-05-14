@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  actor User as Người dùng
+  participant Web as React Web
+  participant Auth as AuthContext
+  participant UserAPI as User Service
+  participant DB as PostgreSQL
+
+  User->>Web: Nhập email/password
+  Web->>Auth: signIn(payload)
+  Auth->>UserAPI: POST /auth/login
+  UserAPI->>DB: Tìm user theo email
+  DB-->>UserAPI: User ACTIVE
+  UserAPI->>DB: Lưu refresh_tokens.token_hash
+  UserAPI-->>Auth: access_token, refresh_token
+  Auth->>UserAPI: GET /users/me
+  UserAPI->>DB: Đọc user + roles/permissions
+  UserAPI-->>Auth: User profile
+  Auth-->>Web: Lưu token, cập nhật session
+
+  alt Access token hết hạn
+    Web->>UserAPI: POST /auth/refresh
+    UserAPI->>DB: Revoke refresh cũ, tạo refresh mới
+    UserAPI-->>Web: Token pair mới
+  end

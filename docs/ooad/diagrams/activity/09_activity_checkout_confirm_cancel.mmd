@@ -1,0 +1,19 @@
+flowchart TD
+  start((Bắt đầu))
+  holding["Booking đang HOLDING"]
+  countdown["Hiển thị countdown expires_at"]
+  choice{"Người dùng chọn"}
+  confirm["POST /bookings/{id}/confirm"]
+  cancel["POST /bookings/{id}/cancel"]
+  expired["Job ReleaseExpiredHolds phát hiện hết hạn"]
+  paid["Booking PAID, ghế SOLD"]
+  canceled["Booking CANCELED, ghế AVAILABLE"]
+  expiredState["Booking EXPIRED, ghế AVAILABLE"]
+  qr["Hiển thị vé QR"]
+  email["POST /notifications/booking-confirmation-email"]
+  finish((Kết thúc))
+
+  start --> holding --> countdown --> choice
+  choice -- "Confirm" --> confirm --> paid --> qr --> email --> finish
+  choice -- "Cancel" --> cancel --> canceled --> finish
+  choice -- "Timeout" --> expired --> expiredState --> finish

@@ -1,0 +1,46 @@
+classDiagram
+  direction LR
+  class User {
+    +UUID id
+    +String email
+    +String full_name
+    +String avatar_url
+    +Provider provider
+    +Role role
+    +Status status
+  }
+  class RefreshToken {
+    +UUID id
+    +UUID user_id
+    +String token_hash
+    +DateTime expires_at
+    +Boolean revoked
+  }
+  class RoleDefinition {
+    +UUID id
+    +String name
+  }
+  class RolePermission {
+    +UUID id
+    +UUID role_id
+    +String permission
+  }
+  class UserRole {
+    +UUID id
+    +UUID user_id
+    +UUID role_id
+    +DateTime assigned_at
+  }
+  class Notification {
+    +UUID id
+    +UUID user_id
+    +String title
+    +Text message
+    +Boolean read
+  }
+
+  User "1" --> "0..*" RefreshToken
+  User "1" --> "0..*" UserRole
+  User "1" --> "0..*" Notification
+  RoleDefinition "1" --> "0..*" RolePermission
+  RoleDefinition "1" --> "0..*" UserRole

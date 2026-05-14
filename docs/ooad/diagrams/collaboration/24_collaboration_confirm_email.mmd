@@ -1,0 +1,19 @@
+flowchart LR
+  buyer["1. Người dùng"]
+  checkout["2. CheckoutPage"]
+  bookingClient["3. Booking API Client"]
+  booking["4. Booking Service"]
+  db["5. PostgreSQL"]
+  userClient["6. User API Client"]
+  userService["7. User Service"]
+  mail["8. Email Dispatcher"]
+
+  buyer -- "1: confirm" --> checkout
+  checkout -- "2: confirmBooking()" --> bookingClient
+  bookingClient -- "3: POST /bookings/{id}/confirm" --> booking
+  booking -- "4: update PAID/SOLD" --> db
+  db -- "5: BookingResponse" --> booking
+  booking -- "6: success" --> checkout
+  checkout -- "7: sendBookingConfirmationEmailApi()" --> userClient
+  userClient -- "8: POST /notifications/booking-confirmation-email" --> userService
+  userService -- "9: queue/send email" --> mail

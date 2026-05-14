@@ -1,0 +1,20 @@
+flowchart LR
+  admin["1. Admin"]
+  page["2. PermissionManagementPage"]
+  api["3. userApi.ts"]
+  roles["4. Roles Controller"]
+  users["5. Users Controller"]
+  repo["6. Role/UserRole Repository"]
+  db["7. PostgreSQL"]
+  notify["8. Notification"]
+
+  admin -- "1: mở permission UI" --> page
+  page -- "2: listRolePermissions()" --> api
+  api -- "3: GET /roles" --> roles
+  roles -- "4: read roles/permissions" --> repo
+  repo -- "5: query" --> db
+  admin -- "6: gán role" --> page
+  api -- "7: POST /users/{id}/roles" --> users
+  users -- "8: assign user_role" --> repo
+  repo -- "9: insert user_roles" --> db
+  users -- "10: tạo notification" --> notify

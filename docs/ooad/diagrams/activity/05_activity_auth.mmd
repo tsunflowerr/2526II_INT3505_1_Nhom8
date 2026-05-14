@@ -1,0 +1,19 @@
+flowchart TD
+  start((Bắt đầu))
+  open["Mở trang login/register"]
+  choose{"Chọn thao tác"}
+  register["Nhập email, password, full_name"]
+  login["Nhập email, password"]
+  oauth["Chọn Google/Facebook"]
+  validate["Validate request"]
+  provider["Xác thực OAuth provider"]
+  issue["Tạo access token + refresh token"]
+  save["Lưu refresh token hash"]
+  me["Web gọi /users/me"]
+  finish((Kết thúc))
+
+  start --> open --> choose
+  choose -- "Register" --> register --> validate
+  choose -- "Login" --> login --> validate
+  choose -- "OAuth" --> oauth --> provider --> issue
+  validate --> issue --> save --> me --> finish

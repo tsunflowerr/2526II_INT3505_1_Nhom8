@@ -1,0 +1,18 @@
+flowchart TD
+  start((Bắt đầu))
+  auth["Admin/Event Owner đăng nhập"]
+  form["Mở form tạo event/movie"]
+  movie{"Là movie?"}
+  tmdb["Tìm/lấy metadata phim từ TMDB"]
+  input["Nhập thông tin event"]
+  seatMap["Thiết kế hoặc chọn seat map"]
+  showtimes["Nhập danh sách suất chiếu"]
+  saveEvent["POST /events"]
+  saveShowtimes["PUT /events/{id}/showtimes"]
+  publish["Catalog sẵn sàng hiển thị"]
+  finish((Kết thúc))
+
+  start --> auth --> form --> movie
+  movie -- "Có" --> tmdb --> input
+  movie -- "Không" --> input
+  input --> seatMap --> showtimes --> saveEvent --> saveShowtimes --> publish --> finish

@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  actor Buyer as Người dùng
+  participant Web as React Web
+  participant BookingAPI as Booking Service
+  participant Redis as Redis
+  participant DB as PostgreSQL
+
+  Buyer->>Web: Chọn showtime
+  Web->>BookingAPI: POST /api/v1/showtimes/{id}/queue/join
+  BookingAPI->>DB: GetShowtimeQueueSettings(showtime_id)
+  DB-->>BookingAPI: queue_enabled, queue_limit
+  alt Queue không bật
+    BookingAPI-->>Web: can_enter=true
+  else Queue bật
+    BookingAPI->>Redis: Join(showtime_id, user_id, maxActive)
+    Redis-->>BookingAPI: position, total_waiting, can_enter
+    BookingAPI-->>Web: QueueStatusResponse
+    loop Khi chưa vào được
+      Web->>BookingAPI: POST /queue/heartbeat
+      BookingAPI->>Redis: Heartbeat
+      Redis-->>BookingAPI: Status
+      BookingAPI-->>Web: QueueStatusResponse
+    end
+  end

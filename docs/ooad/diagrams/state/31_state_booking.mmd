@@ -1,0 +1,8 @@
+stateDiagram-v2
+  [*] --> HOLDING: hold seats
+  HOLDING --> PAID: confirm booking
+  HOLDING --> CANCELED: cancel booking
+  HOLDING --> EXPIRED: ReleaseExpiredHolds
+  PAID --> [*]
+  CANCELED --> [*]
+  EXPIRED --> [*]

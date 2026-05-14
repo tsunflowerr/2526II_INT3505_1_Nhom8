@@ -1,0 +1,40 @@
+flowchart LR
+  customer["Người dùng đã đăng nhập"]
+  smtp["SMTP/Email"]
+
+  subgraph tr["TicketRush"]
+    profile(["Xem/cập nhật hồ sơ"])
+    upload(["Upload avatar/video"])
+    review(["Gửi đánh giá event"])
+    joinQueue(["Vào hàng đợi ảo"])
+    heartbeat(["Heartbeat queue"])
+    seatStatus(["Xem trạng thái ghế realtime"])
+    hold(["Giữ ghế"])
+    checkout(["Checkout booking"])
+    confirm(["Xác nhận đặt vé"])
+    cancel(["Hủy booking"])
+    tickets(["Xem vé QR"])
+    notifications(["Xem/đọc/xóa thông báo"])
+    emailTicket(["Gửi email xác nhận vé"])
+  end
+
+  customer --> profile
+  customer --> upload
+  customer --> review
+  customer --> joinQueue
+  customer --> heartbeat
+  customer --> seatStatus
+  customer --> hold
+  customer --> checkout
+  customer --> confirm
+  customer --> cancel
+  customer --> tickets
+  customer --> notifications
+  customer --> emailTicket
+
+  hold -. "include" .-> joinQueue
+  hold -. "include" .-> seatStatus
+  checkout -. "include" .-> hold
+  confirm -. "extend" .-> checkout
+  tickets -. "extend" .-> confirm
+  emailTicket --> smtp

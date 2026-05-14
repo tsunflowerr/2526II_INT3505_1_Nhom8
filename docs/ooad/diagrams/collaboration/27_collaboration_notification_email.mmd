@@ -1,0 +1,19 @@
+flowchart LR
+  user["1. Người dùng"]
+  page["2. Notifications/MyTickets UI"]
+  api["3. userApi.ts"]
+  notification["4. Notifications Controller"]
+  dispatcher["5. EmailDispatcher"]
+  queue["6. Redis/Background Thread"]
+  smtp["7. SMTP Provider"]
+  db["8. PostgreSQL"]
+
+  user -- "1: mở notifications" --> page
+  page -- "2: listNotificationsApi()" --> api
+  api -- "3: GET /notifications" --> notification
+  notification -- "4: read notifications" --> db
+  user -- "5: yêu cầu gửi email vé" --> page
+  api -- "6: POST /booking-confirmation-email" --> notification
+  notification -- "7: send_booking_confirmation()" --> dispatcher
+  dispatcher -- "8: enqueue/send" --> queue
+  queue -- "9: gửi email" --> smtp

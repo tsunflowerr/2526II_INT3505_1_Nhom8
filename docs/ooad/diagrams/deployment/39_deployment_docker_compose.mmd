@@ -1,0 +1,29 @@
+flowchart TB
+  client["Client Browser"]
+  subgraph host["Docker host"]
+    web["web: Nginx + React<br/>3000:80"]
+    user["user_api: Flask<br/>8082"]
+    event["event_api: Go/Gin<br/>8080"]
+    booking["booking_api: Go/Gin/WebSocket<br/>8081"]
+    migrations["migrations: goose"]
+    postgres["postgres:16<br/>5432"]
+    redis["redis:7<br/>6379"]
+    minio["minio<br/>9000/9001"]
+    pgvol[("postgres_data")]
+    miniovol[("minio_data")]
+  end
+
+  client --> web
+  web --> user
+  web --> event
+  web --> booking
+  web --> minio
+  migrations --> postgres
+  user --> postgres
+  event --> postgres
+  booking --> postgres
+  booking --> redis
+  user --> redis
+  user --> minio
+  postgres --> pgvol
+  minio --> miniovol

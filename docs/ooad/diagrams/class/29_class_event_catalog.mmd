@@ -1,0 +1,53 @@
+classDiagram
+  direction LR
+  class Event {
+    +UUID id
+    +UUID creator_id
+    +String name
+    +EventType event_type
+    +String category
+    +String venue
+    +String status
+    +Int max_tickets_per_booking
+  }
+  class EventReview {
+    +UUID id
+    +UUID event_id
+    +UUID user_id
+    +Int rating
+    +Text comment
+  }
+  class Venue {
+    +UUID id
+    +String name
+    +String address
+  }
+  class SeatMap {
+    +UUID id
+    +UUID venue_id
+    +String name
+  }
+  class Seat {
+    +UUID id
+    +UUID seat_map_id
+    +String row
+    +Int number
+    +SeatClass seat_class
+  }
+  class ShowTime {
+    +UUID id
+    +UUID event_id
+    +UUID venue_id
+    +UUID seat_map_id
+    +DateTime start_time
+    +DateTime end_time
+    +Boolean queue_enabled
+    +Int queue_limit
+  }
+
+  Event "1" --> "0..*" EventReview
+  Event "1" --> "0..*" ShowTime
+  Venue "1" --> "0..*" SeatMap
+  Venue "1" --> "0..*" ShowTime
+  SeatMap "1" --> "1..*" Seat
+  SeatMap "1" --> "0..*" ShowTime

@@ -1,0 +1,19 @@
+sequenceDiagram
+  autonumber
+  actor Admin as Quản trị viên
+  participant Web as Permission UI
+  participant UserAPI as User Service
+  participant DB as PostgreSQL
+  participant Notify as Notification Repository
+
+  Admin->>Web: Mở trang permissions
+  Web->>UserAPI: GET /roles
+  UserAPI->>DB: SELECT role_definitions + role_permissions
+  DB-->>UserAPI: Role list
+  UserAPI-->>Web: RolePermissionSet[]
+  Admin->>Web: Gán role cho user
+  Web->>UserAPI: POST /users/{user_id}/roles
+  UserAPI->>DB: Kiểm tra user, role_definition
+  UserAPI->>DB: INSERT user_roles
+  UserAPI->>Notify: Tạo notification cho user
+  UserAPI-->>Web: UserRoleAssignment

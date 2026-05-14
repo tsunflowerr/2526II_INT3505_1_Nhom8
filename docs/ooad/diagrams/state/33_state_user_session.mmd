@@ -1,0 +1,11 @@
+stateDiagram-v2
+  [*] --> Anonymous
+  Anonymous --> Registered: POST /auth/register
+  Anonymous --> Authenticated: POST /auth/login hoặc OAuth
+  Registered --> Authenticated: token pair issued
+  Authenticated --> Refreshing: access token expired
+  Refreshing --> Authenticated: POST /auth/refresh success
+  Refreshing --> Anonymous: refresh invalid/reused
+  Authenticated --> Anonymous: logout
+  Authenticated --> Blocked: admin blocks user
+  Blocked --> [*]

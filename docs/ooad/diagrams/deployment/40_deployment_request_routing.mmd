@@ -1,0 +1,19 @@
+flowchart LR
+  browser["Browser"]
+  nginx["Web container Nginx"]
+  static["Static React app"]
+  userApi["user_api:8082"]
+  eventApi["event_api:8080"]
+  bookingApi["booking_api:8081"]
+  minio["minio:9000"]
+
+  browser -->|"GET /"| nginx
+  nginx --> static
+  browser -->|"/user-api/*"| nginx
+  nginx -->|"proxy_pass http://user_api:8082/"| userApi
+  browser -->|"/event-api/*"| nginx
+  nginx -->|"proxy_pass http://event_api:8080/"| eventApi
+  browser -->|"/booking-api/* + WS upgrade"| nginx
+  nginx -->|"proxy_pass http://booking_api:8081/"| bookingApi
+  browser -->|"/ticketrush-media/*"| nginx
+  nginx -->|"proxy_pass http://minio:9000/"| minio

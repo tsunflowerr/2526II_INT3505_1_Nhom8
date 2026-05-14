@@ -1,0 +1,18 @@
+flowchart TD
+  start((Bắt đầu))
+  list["GET /events?page&page_size"]
+  filter["Người dùng nhập search/type"]
+  reload["Tải lại danh sách theo query"]
+  choose["Chọn event/movie"]
+  detail["GET /events/{id}"]
+  showtimes["GET /events/{id}/showtimes"]
+  reviews["GET /events/{id}/reviews"]
+  decide{"Muốn đặt vé?"}
+  seats["Mở màn chọn ghế"]
+  finish((Kết thúc))
+
+  start --> list --> filter --> reload --> choose
+  list --> choose
+  choose --> detail --> showtimes --> reviews --> decide
+  decide -- "Có" --> seats --> finish
+  decide -- "Không" --> finish

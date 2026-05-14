@@ -1,0 +1,28 @@
+sequenceDiagram
+  autonumber
+  actor Buyer as Người dùng
+  participant Web as React Web
+  participant BookingAPI as Booking Service
+  participant Queue as VirtualQueueService
+  participant Redis as Redis SeatLocker
+  participant Repo as BookingRepository
+  participant DB as PostgreSQL
+  participant WS as SeatHub/WebSocket
+
+  Buyer->>Web: Chọn ghế và bấm giữ ghế
+  Web->>BookingAPI: POST /api/v1/bookings/hold
+  BookingAPI->>Queue: RequireActiveBookingRoom()
+  Queue->>Redis: HasActiveSession(showtime,user)
+  Redis-->>Queue: true
+  BookingAPI->>Redis: LockSeats(showtime, seat_ids, owner)
+  Redis-->>BookingAPI: locked
+  BookingAPI->>Repo: HoldSeats(request)
+  Repo->>DB: Transaction + SELECT FOR UPDATE show_time_seats
+  Repo->>DB: INSERT bookings status=HOLDING
+  Repo->>DB: UPDATE show_time_seats status=HOLDING
+  Repo->>DB: INSERT booking_items
+  DB-->>Repo: Booking
+  Repo-->>BookingAPI: BookingResponse
+  BookingAPI->>Redis: UnlockSeats()
+  BookingAPI->>WS: Broadcast seat_status
+  BookingAPI-->>Web: 201 seats held successfully

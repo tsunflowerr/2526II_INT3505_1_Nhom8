@@ -1,0 +1,28 @@
+flowchart LR
+  browser["Browser"]
+  web["TicketRush Web<br/>React + Nginx"]
+  userApi["User Service"]
+  eventApi["Event Service"]
+  bookingApi["Booking Service"]
+  migration["Migration Service"]
+  postgres[("PostgreSQL")]
+  redis[("Redis")]
+  minio[("MinIO")]
+  smtp["SMTP"]
+  oauth["OAuth Providers"]
+  tmdb["TMDB"]
+
+  browser --> web
+  web --> userApi
+  web --> eventApi
+  web --> bookingApi
+  web --> tmdb
+  userApi --> postgres
+  userApi --> redis
+  userApi --> minio
+  userApi --> smtp
+  userApi --> oauth
+  eventApi --> postgres
+  bookingApi --> postgres
+  bookingApi --> redis
+  migration --> postgres

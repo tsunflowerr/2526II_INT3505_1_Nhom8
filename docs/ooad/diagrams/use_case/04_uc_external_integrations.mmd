@@ -1,0 +1,29 @@
+flowchart LR
+  user["Người dùng/Admin"]
+  oauth["OAuth Provider"]
+  tmdb["TMDB"]
+  smtp["SMTP Provider"]
+  minio["MinIO/S3"]
+  redis["Redis"]
+  postgres["PostgreSQL"]
+
+  subgraph tr["TicketRush Backend"]
+    userApi(["User Service"])
+    eventApi(["Event Service"])
+    bookingApi(["Booking Service"])
+    migration(["Migration Service"])
+  end
+
+  user --> userApi
+  user --> eventApi
+  user --> bookingApi
+  userApi --> oauth
+  userApi --> smtp
+  userApi --> minio
+  userApi --> postgres
+  userApi --> redis
+  eventApi --> postgres
+  bookingApi --> postgres
+  bookingApi --> redis
+  migration --> postgres
+  eventApi -. "movie metadata qua Web" .-> tmdb

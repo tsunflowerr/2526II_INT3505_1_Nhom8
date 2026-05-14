@@ -1,0 +1,24 @@
+flowchart LR
+  web["React Web + WebSocket"]
+  handler["BookingHandler"]
+  service["BookingService"]
+  queueSvc["VirtualQueueService"]
+  locker["Redis SeatLocker"]
+  queue["Redis QueueManager"]
+  repo["BookingRepository"]
+  hub["SeatHub"]
+  db[("PostgreSQL")]
+  redis[("Redis")]
+
+  web --> handler
+  handler --> service
+  handler --> queueSvc
+  handler --> hub
+  service --> locker
+  service --> repo
+  queueSvc --> queue
+  queueSvc --> repo
+  locker --> redis
+  queue --> redis
+  repo --> db
+  hub --> web

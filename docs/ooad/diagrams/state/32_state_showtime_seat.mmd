@@ -1,0 +1,7 @@
+stateDiagram-v2
+  [*] --> AVAILABLE
+  AVAILABLE --> HOLDING: POST /bookings/hold
+  HOLDING --> SOLD: POST /bookings/{id}/confirm
+  HOLDING --> AVAILABLE: cancel booking
+  HOLDING --> AVAILABLE: hold expired
+  SOLD --> [*]

@@ -1,0 +1,17 @@
+flowchart LR
+  buyer["1. Người dùng"]
+  waiting["2. WaitingRoomPage"]
+  client["3. Booking API Client"]
+  booking["4. Booking Handler"]
+  queueSvc["5. VirtualQueueService"]
+  redis["6. Redis Queue"]
+  db["7. PostgreSQL"]
+
+  buyer -- "1: vào queue" --> waiting
+  waiting -- "2: joinQueue()" --> client
+  client -- "3: POST /queue/join" --> booking
+  booking -- "4: parse auth/showtime" --> queueSvc
+  queueSvc -- "5: đọc queue settings" --> db
+  queueSvc -- "6: join/heartbeat/status" --> redis
+  redis -- "7: position/can_enter" --> queueSvc
+  queueSvc -- "8: QueueStatusResponse" --> waiting

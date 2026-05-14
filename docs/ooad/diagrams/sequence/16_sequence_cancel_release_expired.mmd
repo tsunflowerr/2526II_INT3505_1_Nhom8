@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  actor Buyer as Người dùng
+  participant Web as React Web
+  participant BookingAPI as Booking Service
+  participant DB as PostgreSQL
+  participant WS as SeatHub/WebSocket
+
+  alt Người dùng hủy booking
+    Buyer->>Web: Bấm hủy
+    Web->>BookingAPI: POST /api/v1/bookings/{id}/cancel
+    BookingAPI->>DB: Lock booking HOLDING
+    BookingAPI->>DB: UPDATE bookings SET status=CANCELED
+    BookingAPI->>DB: UPDATE show_time_seats SET status=AVAILABLE
+    BookingAPI->>WS: Broadcast seat_status
+    BookingAPI-->>Web: booking canceled
+  else Booking hết hạn
+    BookingAPI->>BookingAPI: Ticker 15 giây gọi ReleaseExpiredHolds()
+    BookingAPI->>DB: Tìm bookings HOLDING có expires_at < now
+    BookingAPI->>DB: UPDATE bookings SET status=EXPIRED
+    BookingAPI->>DB: UPDATE show_time_seats SET status=AVAILABLE
+    BookingAPI->>WS: Broadcast seat_status
+  end

@@ -1,0 +1,21 @@
+sequenceDiagram
+  autonumber
+  actor Buyer as Người dùng
+  participant Web as React Web
+  participant BookingAPI as Booking Service
+  participant DB as PostgreSQL
+  participant UserAPI as User Service
+  participant Mail as Email Dispatcher/Worker
+
+  Buyer->>Web: Xác nhận checkout
+  Web->>BookingAPI: POST /api/v1/bookings/{id}/confirm
+  BookingAPI->>DB: Lock booking HOLDING
+  BookingAPI->>DB: UPDATE bookings SET status=PAID, expires_at=NULL
+  BookingAPI->>DB: UPDATE show_time_seats SET status=SOLD
+  DB-->>BookingAPI: BookingResponse
+  BookingAPI-->>Web: booking confirmed
+  Web->>BookingAPI: GET /api/v1/bookings/{id}
+  BookingAPI-->>Web: Booking detail
+  Web->>UserAPI: POST /notifications/booking-confirmation-email
+  UserAPI->>Mail: enqueue/send booking confirmation
+  Mail-->>Buyer: Email thông tin vé

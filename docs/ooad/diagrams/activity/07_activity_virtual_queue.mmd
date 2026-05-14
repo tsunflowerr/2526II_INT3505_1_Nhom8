@@ -1,0 +1,19 @@
+flowchart TD
+  start((Bắt đầu))
+  select["Người dùng chọn showtime"]
+  check{"queue_enabled?"}
+  bypass["Cho vào chọn ghế trực tiếp"]
+  join["POST /queue/join"]
+  status{"can_enter?"}
+  wait["Hiển thị vị trí hàng đợi"]
+  heartbeat["POST /queue/heartbeat"]
+  enter["Cho vào phòng chọn ghế"]
+  leave["POST /queue/leave khi rời trang"]
+  finish((Kết thúc))
+
+  start --> select --> check
+  check -- "Không" --> bypass --> finish
+  check -- "Có" --> join --> status
+  status -- "Chưa" --> wait --> heartbeat --> status
+  status -- "Rồi" --> enter --> finish
+  wait --> leave --> finish

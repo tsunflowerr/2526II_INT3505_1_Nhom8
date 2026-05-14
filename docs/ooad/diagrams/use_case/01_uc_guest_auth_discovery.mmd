@@ -1,0 +1,30 @@
+flowchart LR
+  guest["Khách truy cập"]
+  oauth["Google/Facebook OAuth"]
+  smtp["SMTP/Email"]
+
+  subgraph tr["TicketRush"]
+    browse(["Xem danh sách event/movie"])
+    search(["Tìm kiếm, lọc catalog"])
+    detail(["Xem chi tiết event/movie"])
+    showtimes(["Xem suất chiếu"])
+    reviews(["Xem đánh giá"])
+    register(["Đăng ký tài khoản"])
+    login(["Đăng nhập"])
+    oauthLogin(["Đăng nhập OAuth"])
+    forgot(["Quên mật khẩu"])
+    reset(["Đặt lại mật khẩu"])
+  end
+
+  guest --> browse
+  guest --> search
+  guest --> detail
+  guest --> showtimes
+  guest --> reviews
+  guest --> register
+  guest --> login
+  guest --> oauthLogin
+  guest --> forgot
+  forgot -. "include" .-> reset
+  oauthLogin --> oauth
+  forgot --> smtp

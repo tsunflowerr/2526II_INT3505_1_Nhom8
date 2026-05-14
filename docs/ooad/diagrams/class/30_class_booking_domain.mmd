@@ -1,0 +1,54 @@
+classDiagram
+  direction LR
+  class Booking {
+    +UUID id
+    +UUID user_id
+    +UUID show_time_id
+    +BookingStatus status
+    +DateTime expires_at
+  }
+  class BookingItem {
+    +UUID id
+    +UUID booking_id
+    +UUID show_time_seat_id
+    +Decimal price
+  }
+  class ShowTimeSeat {
+    +UUID id
+    +UUID show_time_id
+    +UUID seat_id
+    +ShowTimeSeatStatus status
+    +UUID booking_id
+    +DateTime expires_at
+  }
+  class SeatPricing {
+    +UUID id
+    +UUID show_time_id
+    +UUID seat_id
+    +Decimal price
+  }
+  class Ticket {
+    <<derived/client>>
+    +String ticket_code
+    +String qr_payload
+    +DateTime issued_at
+  }
+  class BookingStatus {
+    <<enumeration>>
+    HOLDING
+    PAID
+    CANCELED
+    EXPIRED
+  }
+  class ShowTimeSeatStatus {
+    <<enumeration>>
+    AVAILABLE
+    HOLDING
+    SOLD
+  }
+
+  Booking "1" --> "1..*" BookingItem
+  Booking "1" --> "0..*" Ticket
+  ShowTimeSeat "1" --> "0..1" BookingItem
+  ShowTimeSeat "1" --> "0..1" Ticket
+  SeatPricing "1" --> "0..*" BookingItem : supplies_price

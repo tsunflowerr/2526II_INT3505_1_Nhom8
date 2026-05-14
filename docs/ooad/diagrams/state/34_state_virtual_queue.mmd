@@ -1,0 +1,9 @@
+stateDiagram-v2
+  [*] --> NotInQueue
+  NotInQueue --> Waiting: join queue
+  Waiting --> Waiting: heartbeat, can_enter=false
+  Waiting --> ActiveRoom: can_enter=true
+  ActiveRoom --> ActiveRoom: heartbeat
+  ActiveRoom --> NotInQueue: leave queue
+  Waiting --> Removed: heartbeat timeout/leave page
+  Removed --> NotInQueue: join again

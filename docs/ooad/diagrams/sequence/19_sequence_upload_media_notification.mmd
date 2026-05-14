@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  actor User as Người dùng
+  participant Web as React Web
+  participant UserAPI as User Service
+  participant MinIO as MinIO/S3
+  participant DB as PostgreSQL
+
+  User->>Web: Chọn avatar/video
+  Web->>UserAPI: POST /users/me/media multipart/form-data
+  UserAPI->>UserAPI: Kiểm tra JWT và file
+  UserAPI->>MinIO: Upload object vào bucket ticketrush-media
+  MinIO-->>UserAPI: Public URL
+  UserAPI-->>Web: url
+  Web->>UserAPI: PATCH /users/me avatar_url
+  UserAPI->>DB: UPDATE users
+  DB-->>UserAPI: Updated user
+  UserAPI-->>Web: User profile mới

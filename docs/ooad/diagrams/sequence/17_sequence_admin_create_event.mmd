@@ -1,0 +1,22 @@
+sequenceDiagram
+  autonumber
+  actor Admin as Admin/Event Owner
+  participant Web as Admin UI
+  participant TMDB as TMDB API
+  participant EventAPI as Event Service
+  participant DB as PostgreSQL
+
+  Admin->>Web: Mở form tạo event/movie
+  opt Movie metadata
+    Web->>TMDB: Tìm phim theo tên
+    TMDB-->>Web: Movie metadata/trailer
+  end
+  Admin->>Web: Nhập thông tin + showtimes + seat map
+  Web->>EventAPI: POST /api/v1/events
+  EventAPI->>DB: INSERT events
+  DB-->>EventAPI: event_id
+  EventAPI-->>Web: EventResponse
+  Web->>EventAPI: PUT /api/v1/events/{id}/showtimes
+  EventAPI->>DB: Upsert venue, seat_map, seats, show_times, seat_pricing
+  DB-->>EventAPI: ShowtimeResponse[]
+  EventAPI-->>Web: showtimes replaced

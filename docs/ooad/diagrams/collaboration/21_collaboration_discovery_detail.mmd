@@ -1,0 +1,16 @@
+flowchart LR
+  guest["1. Khách/User"]
+  page["2. Discovery/EventDetailPage"]
+  client["3. ticketRushApi.ts"]
+  eventService["4. Event Service"]
+  db["5. PostgreSQL"]
+
+  guest -- "1: mở catalog" --> page
+  page -- "2: listEventPage()" --> client
+  client -- "3: GET /events" --> eventService
+  eventService -- "4: query events" --> db
+  db -- "5: event list" --> eventService
+  guest -- "6: chọn event" --> page
+  page -- "7: getEvent(), getShowtimesByEvent()" --> client
+  client -- "8: GET detail/showtimes/reviews" --> eventService
+  eventService -- "9: dữ liệu chi tiết" --> page

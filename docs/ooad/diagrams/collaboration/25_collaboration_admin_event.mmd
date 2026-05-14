@@ -1,0 +1,18 @@
+flowchart LR
+  admin["1. Admin/Event Owner"]
+  form["2. AdminCreateEventPage"]
+  tmdb["3. TMDB Client"]
+  eventClient["4. Event API Client"]
+  eventService["5. Event Service"]
+  repo["6. EventRepository"]
+  db["7. PostgreSQL"]
+
+  admin -- "1: nhập form" --> form
+  form -- "2: tìm movie metadata" --> tmdb
+  form -- "3: createEvent()" --> eventClient
+  eventClient -- "4: POST /events" --> eventService
+  eventService -- "5: Create()" --> repo
+  repo -- "6: insert events" --> db
+  eventClient -- "7: PUT /events/{id}/showtimes" --> eventService
+  repo -- "8: replace showtimes/seat map/pricing" --> db
+  db -- "9: catalog mới" --> form

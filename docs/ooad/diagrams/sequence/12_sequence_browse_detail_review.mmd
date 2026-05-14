@@ -1,0 +1,19 @@
+sequenceDiagram
+  autonumber
+  actor Guest as Khách/User
+  participant Web as React Web
+  participant EventAPI as Event Service
+  participant DB as PostgreSQL
+
+  Guest->>Web: Mở trang Discovery
+  Web->>EventAPI: GET /api/v1/events?page=1&page_size=40
+  EventAPI->>DB: SELECT events WHERE deleted_at IS NULL
+  DB-->>EventAPI: Events
+  EventAPI-->>Web: PaginatedResponse
+  Guest->>Web: Chọn event/movie
+  Web->>EventAPI: GET /api/v1/events/{id}
+  Web->>EventAPI: GET /api/v1/events/{id}/showtimes
+  Web->>EventAPI: GET /api/v1/events/{id}/reviews
+  EventAPI->>DB: SELECT event, show_times, event_reviews
+  DB-->>EventAPI: Detail data
+  EventAPI-->>Web: Event + showtimes + reviews

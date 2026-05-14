@@ -1,0 +1,28 @@
+flowchart TD
+  start((Bắt đầu))
+  choose["Chọn ghế"]
+  submit["POST /bookings/hold"]
+  auth{"JWT hợp lệ?"}
+  queue{"Có active queue session?"}
+  maxTicket{"Số ghế <= max_tickets_per_booking?"}
+  redis{"Khóa Redis seat thành công?"}
+  dbLock["Lock rows show_time_seats trong transaction"]
+  available{"Tất cả ghế AVAILABLE hoặc HOLDING đã hết hạn?"}
+  create["Tạo booking HOLDING và booking_items"]
+  update["Cập nhật show_time_seats = HOLDING, expires_at"]
+  broadcast["Broadcast seat_status qua WebSocket"]
+  conflict["Trả 409 conflict"]
+  finish((Kết thúc))
+
+  start --> choose --> submit --> auth
+  auth -- "Không" --> conflict
+  auth -- "Có" --> queue
+  queue -- "Không" --> conflict
+  queue -- "Có" --> maxTicket
+  maxTicket -- "Không" --> conflict
+  maxTicket -- "Có" --> redis
+  redis -- "Không" --> conflict
+  redis -- "Có" --> dbLock --> available
+  available -- "Không" --> conflict
+  available -- "Có" --> create --> update --> broadcast --> finish
+  conflict --> finish

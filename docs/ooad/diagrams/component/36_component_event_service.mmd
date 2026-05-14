@@ -1,0 +1,16 @@
+flowchart LR
+  web["React/Admin Web"]
+  handler["EventHandler"]
+  service["EventService"]
+  repo["EventRepository"]
+  db[("PostgreSQL")]
+  swagger["Swagger/OpenAPI"]
+  metrics["/metrics"]
+
+  web --> handler
+  handler --> service
+  service --> repo
+  repo --> db
+  handler --> swagger
+  handler --> metrics
+  repo -->|"events, reviews, show_times, seat_maps, seats, seat_pricing"| db

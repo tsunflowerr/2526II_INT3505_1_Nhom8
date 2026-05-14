@@ -1,0 +1,42 @@
+flowchart LR
+  admin["Quản trị viên"]
+  organizer["Nhà tổ chức/Event Owner"]
+  tmdb["TMDB API"]
+
+  subgraph tr["TicketRush Admin"]
+    dashboard(["Xem dashboard"])
+    createEvent(["Tạo event/movie"])
+    updateEvent(["Sửa event/movie"])
+    deleteEvent(["Xóa event/movie"])
+    manageShowtime(["Quản lý suất chiếu"])
+    designSeatMap(["Thiết kế seat map"])
+    importMovie(["Lấy metadata phim"])
+    manageUsers(["Quản lý người dùng"])
+    userStats(["Xem thống kê user"])
+    manageRoles(["Quản lý role"])
+    managePermissions(["Quản lý permission"])
+    assignRoles(["Gán/gỡ role cho user"])
+  end
+
+  organizer --> dashboard
+  organizer --> createEvent
+  organizer --> updateEvent
+  organizer --> manageShowtime
+  organizer --> designSeatMap
+
+  admin --> dashboard
+  admin --> createEvent
+  admin --> updateEvent
+  admin --> deleteEvent
+  admin --> manageShowtime
+  admin --> designSeatMap
+  admin --> importMovie
+  admin --> manageUsers
+  admin --> userStats
+  admin --> manageRoles
+  admin --> managePermissions
+  admin --> assignRoles
+
+  createEvent -. "include" .-> manageShowtime
+  createEvent -. "include" .-> designSeatMap
+  importMovie --> tmdb

@@ -1,0 +1,22 @@
+flowchart LR
+  buyer["1. Người dùng"]
+  seatPage["2. SeatSelectionPage"]
+  client["3. ticketRushApi.holdSeats"]
+  handler["4. BookingHandler"]
+  service["5. BookingService"]
+  redis["6. Redis SeatLocker"]
+  repo["7. BookingRepository"]
+  db["8. PostgreSQL"]
+  hub["9. SeatHub"]
+
+  buyer -- "1: chọn ghế" --> seatPage
+  seatPage -- "2: holdSeats()" --> client
+  client -- "3: POST /bookings/hold" --> handler
+  handler -- "4: gọi service" --> service
+  service -- "5: LockSeats" --> redis
+  service -- "6: HoldSeats transaction" --> repo
+  repo -- "7: insert booking/items, update seats" --> db
+  db -- "8: booking HOLDING" --> repo
+  service -- "9: response" --> handler
+  handler -- "10: broadcast" --> hub
+  handler -- "11: 201" --> seatPage

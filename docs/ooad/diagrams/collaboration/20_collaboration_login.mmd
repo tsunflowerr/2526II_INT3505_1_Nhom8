@@ -1,0 +1,18 @@
+flowchart LR
+  user["1. Người dùng"]
+  web["2. AuthPage"]
+  auth["3. AuthContext"]
+  api["4. userApi.ts"]
+  userService["5. User Service"]
+  db["6. PostgreSQL"]
+
+  user -- "1: nhập credential" --> web
+  web -- "2: signIn()" --> auth
+  auth -- "3: login()" --> api
+  api -- "4: POST /auth/login" --> userService
+  userService -- "5: kiểm tra users" --> db
+  userService -- "6: lưu refresh token" --> db
+  userService -- "7: token pair" --> api
+  api -- "8: GET /users/me" --> userService
+  userService -- "9: profile" --> auth
+  auth -- "10: cập nhật session" --> web
