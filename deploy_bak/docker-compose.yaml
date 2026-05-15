@@ -49,7 +49,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_PROMETHEUS_AUTH_TYPE: public
 
     command: server /data --console-address ":9001"
 
@@ -108,12 +107,6 @@ services:
     ports:
       - "8080:8080"
 
-    healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8080/healthz" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
     networks:
       - backend
 
@@ -142,12 +135,6 @@ services:
     ports:
       - "8081:8081"
 
-    healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8081/healthz" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
     networks:
       - backend
 
@@ -164,7 +151,6 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8082
       POSTGRES_HOST: postgres
-      REDIS_URL: redis://redis:6379/0
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-minio}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
@@ -179,21 +165,9 @@ services:
         condition: service_completed_successfully
       minio:
         condition: service_healthy
-      redis:
-        condition: service_healthy
 
     ports:
       - "8082:8082"
-
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8082/healthz', timeout=3).read()\""
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
     networks:
       - backend
@@ -209,18 +183,12 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_FACEBOOK_APP_ID: ${VITE_FACEBOOK_APP_ID:-}
         VITE_OAUTH_REDIRECT_BASE_URL: ${VITE_OAUTH_REDIRECT_BASE_URL:-}
-        VITE_TMDB_API_TOKEN: eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiZjU4ODhjMzIxMGMyOTViNmM1NTQyOTY1Y2ZhMTRkZSIsIm5iZiI6MTc2Mzc4NDQ4Mi44ODMwMDAxLCJzdWIiOiI2OTIxMzcyMjI0N2EzMjFlZWZkZDQyNzciLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.7-vQHihe5SX11NnXZUaB2dY4uvlSDYN_V3VHvxDwEKU
+        VITE_TMDB_API_TOKEN: ${VITE_TMDB_API_TOKEN:-}
     image: ticketrush-web:local
     restart: always
 
     ports:
       - "3000:80"
-
-    healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/healthz" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
     depends_on:
       - event_api
@@ -236,4 +204,4 @@ volumes:
 
 networks:
   backend:
-    name: deploy_backend
+

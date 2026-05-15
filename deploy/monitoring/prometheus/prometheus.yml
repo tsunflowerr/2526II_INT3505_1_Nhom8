@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: ticket-apps
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["event_api:8080"]
+        labels:
+          service: event_api
+      - targets: ["booking_api:8081"]
+        labels:
+          service: booking_api
+      - targets: ["user_api:8082"]
+        labels:
+          service: user_api
+
+  - job_name: web-nginx
+    static_configs:
+      - targets: ["nginx_exporter:9113"]
+        labels:
+          service: web
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres_exporter:9187"]
+        labels:
+          service: postgres
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis_exporter:9121"]
+        labels:
+          service: redis
+
+  - job_name: minio
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ["minio:9000"]
+        labels:
+          service: minio
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node_exporter:9100"]

@@ -1,0 +1,127 @@
+name: ticketrush_monitoring
+
+services:
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: ticket_postgres_exporter
+    restart: always
+
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}?sslmode=disable
+
+    networks:
+      - backend
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: ticket_redis_exporter
+    restart: always
+
+    environment:
+      REDIS_ADDR: redis://redis:6379
+
+    networks:
+      - backend
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    container_name: ticket_nginx_exporter
+    restart: always
+
+    command:
+      - --nginx.scrape-uri=http://web/nginx_status
+
+    networks:
+      - backend
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    container_name: ticket_cadvisor
+    restart: always
+    privileged: true
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+    networks:
+      - backend
+
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: ticket_node_exporter
+    restart: always
+
+    command:
+      - --path.rootfs=/host
+
+    volumes:
+      - /:/host:ro,rslave
+
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: ticket_prometheus
+    restart: always
+
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      - --web.enable-lifecycle
+
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+
+    ports:
+      - "9090:9090"
+
+    depends_on:
+      - postgres_exporter
+      - redis_exporter
+      - nginx_exporter
+      - cadvisor
+      - node_exporter
+
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: ticket_grafana
+    restart: always
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+    ports:
+      - "3001:3000"
+
+    depends_on:
+      - prometheus
+
+    networks:
+      - backend
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  backend:
+    external: true
+    name: deploy_backend
